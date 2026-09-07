@@ -137,6 +137,16 @@ jobs:
 
       - name: Preparar chave SSH
         run: |
+          # Sem isto, um secret ausente vira uma chave vazia e o passo falha
+          # tres comandos adiante com "exit code 1" e nenhuma pista. Vale
+          # lembrar que o GitHub resolve os secrets quando o RUN e criado:
+          # cadastrar um secret nao conserta um run que ja estava na fila.
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "::error::secret SSH_PRIVATE_KEY vazio ou ausente"; exit 1
+          fi
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "::error::secret SSH_HOST vazio ou ausente"; exit 1
+          fi
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy.pem
           chmod 600 ~/.ssh/deploy.pem
