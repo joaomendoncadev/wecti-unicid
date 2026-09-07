@@ -253,6 +253,30 @@ Started WectiApiApplication in X.X seconds
 | `Communications link failure` | O contêiner do banco não subiu | `docker compose ps`; ver os logs do `db` |
 | `Port already in use` | Instância anterior ainda rodando | `docker compose down` e subir de novo |
 
+### Alguém está vendo a página antiga depois de um deploy
+
+Peça um recarregamento forçado (no Safari, Option+clique no botão de recarregar;
+no Chrome, Shift+F5). Se resolver, era cache do navegador.
+
+Isso **não deveria mais acontecer**: o nginx envia `Cache-Control: no-cache` para
+o HTML e para o `style.css`, que não têm hash no nome — o navegador é obrigado a
+revalidar, e recebe um `304` vazio quando nada mudou. Já os `/assets/*` do Vite
+têm hash no nome e ficam um ano em cache, porque um deploy gera outro nome.
+
+Se o sintoma voltar, confira que a regra continua no ar:
+
+```bash
+curl -sI https://wecti.com.br/style.css | grep -i cache-control
+```
+
+Tem que responder `no-cache`. Se vier vazio, a configuração do nginx foi
+sobrescrita — reaplique `deploy/nginx/wecti.com.br.conf`.
+
+> Aconteceu em 07/09/2026: o `style.css` é compartilhado entre a landing e a
+> página de inscrições. Quem tinha visitado a home antes do deploy abriu a
+> página nova reaproveitando o CSS antigo, que ainda não tinha as regras dela —
+> e viu o conteúdo sem estilo nenhum, com um vão enorme no lugar do título.
+
 ### Site fora do ar
 
 ```bash
