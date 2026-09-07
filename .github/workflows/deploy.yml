@@ -106,6 +106,28 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+      - name: Versionar a URL do style.css
+        # As paginas estaticas (home, inscricoes, palestrantes) compartilham um
+        # unico style.css, e ele NAO tem hash no nome como os assets do Vite.
+        # Isso ja mordeu em 07/09/2026: quem tinha visitado a home antes de um
+        # deploy abriu a pagina de inscricoes reaproveitando o CSS antigo, sem
+        # as regras dela, e viu o conteudo sem estilo nenhum.
+        #
+        # O Cache-Control "no-cache" do Nginx resolve dali em diante, mas nao
+        # alcanca quem JA tinha o arquivo guardado - o navegador so revalida
+        # quando o prazo que ele mesmo escolheu vencer. Anexar o hash do
+        # conteudo muda o endereco, que e outra chave de cache: nao ha o que
+        # reaproveitar.
+        #
+        # O hash e do CONTEUDO, nao do commit: um deploy que nao mexeu no CSS
+        # mantem a mesma URL, e o navegador continua aproveitando o que tem.
+        working-directory: ./frontend
+        run: |
+          V=$(md5sum dist/style.css | cut -c1-8)
+          find dist -name '*.html' -exec sed -i "s|\(href=\"[^\"]*style\.css\)\"|\1?v=$V\"|g" {} +
+          echo "style.css versionado como ?v=$V em:"
+          grep -rl "style.css?v=$V" dist --include='*.html' | sed 's|^|  |'
+
       - name: Conferir que o build tem as duas partes do site
         working-directory: ./frontend
         run: |
