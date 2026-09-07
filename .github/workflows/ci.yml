@@ -3,8 +3,10 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+# Sem gatilho de push: neste repositorio, push na main dispara o deploy.yml,
+# cujo primeiro job roda exatamente estes testes. Manter os dois gastaria
+# minuto de Actions duas vezes pelo mesmo resultado - e um deploy so comeca
+# depois de os testes passarem, entao nada deixa de ser coberto.
 
 jobs:
   build:

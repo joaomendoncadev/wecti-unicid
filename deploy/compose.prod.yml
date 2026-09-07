@@ -1,0 +1,64 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: wecti-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-wecti}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - wecti-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - wecti-net
+
+  api:
+    # Imagem pronta, construida pelo GitHub Actions (.github/workflows/deploy.yml).
+    # Antes isto era "build: ./WECTI/backend", o que rodava o Maven na propria
+    # instancia - uma maquina de 2 GB que ja carrega MySQL e a JVM. Um build que
+    # estourasse a memoria derrubava o banco junto, e justamente durante o deploy.
+    #
+    # WECTI_TAG e o SHA do commit. Fixar a tag e o que torna o rollback imediato:
+    #   WECTI_TAG=<sha anterior> docker compose -f compose.prod.yml up -d api
+    image: ghcr.io/joaomendoncadev/wecti-api:${WECTI_TAG:-latest}
+    # So busca no registro se a imagem nao estiver na maquina. O deploy ja faz
+    # "compose pull" explicito da tag nova; deixar o "up" buscar de novo faria
+    # o rollback falhar justamente quando ele importa - a tag "pre-cicd", o
+    # ponto de retorno anterior ao CI/CD, existe apenas localmente.
+    pull_policy: missing
+    container_name: wecti-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-wecti}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      FRONTEND_URL: ${FRONTEND_URL}
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:-false}
+      RATE_LIMIT_MAX_FALHAS: ${RATE_LIMIT_MAX_FALHAS:-10}
+      RATE_LIMIT_JANELA_MINUTOS: ${RATE_LIMIT_JANELA_MINUTOS:-15}
+      CHECKIN_JANELA_CODIGO_SEGUNDOS: ${CHECKIN_JANELA_CODIGO_SEGUNDOS:-60}
+      CHECKIN_TOLERANCIA_ANTES_MINUTOS: ${CHECKIN_TOLERANCIA_ANTES_MINUTOS:-30}
+      CHECKIN_TOLERANCIA_DEPOIS_MINUTOS: ${CHECKIN_TOLERANCIA_DEPOIS_MINUTOS:-30}
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - wecti-net
+
+networks:
+  wecti-net:
+
+volumes:
+  wecti-db-data:

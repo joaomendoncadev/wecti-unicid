@@ -1,564 +1,343 @@
-# Deploy do WECTI
+# Deploy e operação do WECTI
 
-Guia para colocar o sistema no ar. Escrito para ser seguido de cima para
-baixo — a ordem importa.
+O sistema roda na **AWS Lightsail**, numa instância Ubuntu chamada
+`wecti-prod`. Este documento cobre como publicar, como voltar atrás quando algo
+dá errado, e o que olhar durante o evento.
 
-O sistema tem três peças: o **frontend** (arquivos estáticos), a **API**
-(um `.jar` Java) e o **banco MySQL**.
+Para a descrição dos arquivos de configuração, veja
+[`../deploy/README.md`](../deploy/README.md).
+
+> **Histórico:** até agosto de 2026 este guia descrevia uma hospedagem cPanel
+> (Integrator Host), com upload de `.jar` pelo painel, phpMyAdmin e `.htaccess`.
+> Nada disso vale mais. O que sobreviveu daquele texto — migrations, rate limit,
+> QR rotativo, leitura de log — está preservado aqui porque continua verdadeiro:
+> é conhecimento sobre o **sistema**, não sobre a hospedagem.
 
 ---
 
-## 1. Antes de tudo: HTTPS
+## 1. Como o sistema está montado
 
-**Isto não é configuração da aplicação — é do painel da hospedagem.**
-
-Sem HTTPS, senha e token de sessão trafegam legíveis pela rede. Em Wi-Fi
-de campus isso é interceptável por qualquer pessoa conectada.
-
-### Passo a passo no cPanel
-
-**Emitir o certificado**
-
-1. Entrar no cPanel e procurar a seção **Security** (Segurança).
-2. Abrir **SSL/TLS Status** — é a tela que lista os domínios e mostra se
-   cada um já tem certificado.
-   - Se aparecer o botão **Run AutoSSL**, clicar. O cPanel emite sozinho
-     (Let's Encrypt) e leva de segundos a alguns minutos.
-   - Se não houver AutoSSL, procurar **Let's Encrypt™ SSL** na seção
-     Security, selecionar o domínio e clicar em *Issue*.
-   - Se nenhuma das duas existir, o recurso pode estar desativado no
-     plano — nesse caso é preciso abrir chamado com a Integrator Host
-     pedindo AutoSSL/Let's Encrypt para o domínio.
-3. Voltar em **SSL/TLS Status** e confirmar que o domínio aparece com o
-   cadeado verde / *Certificate is valid*.
-
-**Forçar HTTPS**
-
-4. Ir em **Domains** (Domínios) no cPanel. Na linha do domínio há uma
-   chave **Force HTTPS Redirect** — ligar.
-   - Se essa opção não existir na sua versão do painel, dá para fazer
-     pelo `.htaccess` (ver abaixo).
-5. Conferir: abrir `http://jadir9152.c44.integrator.host` no navegador.
-   Deve virar `https://` sozinho, com o cadeado fechado.
-
-> **Ordem importa:** só ligue o Force HTTPS **depois** que o certificado
-> estiver emitido e válido. Ligar antes deixa o site inacessível, porque
-> ele passa a redirecionar para um HTTPS que ainda não funciona.
-
-**Alternativa pelo `.htaccess`** (só se o painel não tiver a opção)
-
-O projeto já publica um `.htaccess` na raiz do site. Se precisar forçar
-HTTPS por ali, acrescente estas linhas **no topo** do arquivo:
-
-```apache
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteCond %{HTTPS} off
-  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-</IfModule>
+```
+                    ┌──────────── wecti-prod (Lightsail, 2 GB) ────────────┐
+  navegador ──443──▶│  nginx ──▶ /var/www/wecti          (site estático)   │
+                    │        └─▶ 127.0.0.1:8080 ──▶ contêiner wecti-api    │
+                    │                                        │             │
+                    │                                   wecti-db (MySQL)   │
+                    │                                   volume persistente │
+                    └──────────────────────────────────────────────────────┘
 ```
 
-Do lado da aplicação **já está tudo pronto**: a API está configurada com
-`server.forward-headers-strategy=framework`, que faz ela entender que a
-requisição original veio por HTTPS mesmo recebendo HTTP do servidor web.
-Isso é necessário para duas coisas funcionarem corretamente atrás do
-proxy: o IP real do visitante (usado no limite de tentativas de login) e
-qualquer URL que a aplicação gere.
-
-### E se o certificado ainda não saiu?
-
-Dá para adiantar o deploy em HTTP e migrar depois — mas os endereços
-precisam ser **coerentes entre si** nas duas fases. O navegador compara a
-origem exata: `http://dominio` e `https://dominio` são origens
-**diferentes**, e misturar as duas faz o CORS bloquear todas as chamadas
-do site (o sintoma é o login falhar com "Não foi possível entrar" mesmo
-com a senha certa).
-
-**Fase 1 — enquanto está só em HTTP**
-
-| Onde | Valor |
+| Peça | Onde |
 |---|---|
-| `CORS_ALLOWED_ORIGINS` | `http://jadir9152.c44.integrator.host` |
-| `FRONTEND_URL` | `http://jadir9152.c44.integrator.host` |
-| `frontend/.env.production` | `VITE_API_URL=http://jadir9152.c44.integrator.host` |
+| Site (landing + React) | `/var/www/wecti`, servido pelo nginx |
+| API | Contêiner `wecti-api`, escutando **só** em `127.0.0.1:8080` |
+| Banco | Contêiner `wecti-db`, volume `wecti-db-data`, **sem porta pública** |
+| Segredos | `/opt/wecti/.env` — só na máquina, nunca no repositório |
+| TLS | Let's Encrypt via certbot, renovação automática (`certbot.timer`) |
+| Backup | `/opt/wecti/backups`, dump diário às 03:00, 14 dias |
 
-E **não ligue** o *Integrator Force HTTPS* ainda.
-
-**Fase 2 — quando o certificado estiver válido**
-
-1. Trocar os três valores acima para `https://`.
-2. Refazer o build do frontend (`npm run build`) e subir de novo — o
-   endereço da API fica **gravado dentro** dos arquivos no build, então
-   trocar só a variável não adianta.
-3. Reiniciar a API para as variáveis novas valerem.
-4. **Agora sim** ligar o *Integrator Force HTTPS*.
-
-Se preferir evitar esse retrabalho, espere o certificado e faça tudo
-direto em `https://`.
+A API não tem porta aberta para a internet: tudo passa pelo nginx. Por isso o
+`server.forward-headers-strategy=framework` no `application.yml` importa — sem
+ele a aplicação veria toda requisição vindo do IP do nginx, e o limite de
+tentativas de login bloquearia o site inteiro por causa de um único atacante.
 
 ---
 
-## 2. Banco de dados no cPanel
+## 2. Publicar uma versão
 
-### Se o banco JÁ existe (versão anterior do sistema)
+**Push na `main` publica automaticamente.** Não há passo manual.
 
-O Flyway aplica sozinho as migrations que faltam — mas **faça backup
-antes**, porque uma delas apaga uma coluna.
+O que acontece, em ordem:
 
-1. **Backup primeiro.** cPanel → **Backup** → *Download a MySQL Database
-   Backup* → escolher o banco. Guarde o arquivo.
-2. cPanel → **phpMyAdmin** → selecionar o banco → aba **SQL** → colar o
-   conteúdo de `docs/verificar-banco.sql` e executar. Ele mostra em que
-   versão o schema está e se alguma migration falhou.
-3. Comparar com o que o sistema espera hoje: **versão 7**.
+1. **Testes** — `mvn verify` com MySQL de serviço. Se um teste falhar, nada sai
+   daqui.
+2. **Imagem** — a API é compilada e publicada no GHCR com duas tags: o SHA do
+   commit e `latest`.
+3. **Frontend** — `npm ci && npm run build`, com o endereço da API gravado
+   dentro dos arquivos.
+4. **Deploy** — envia o site por `rsync`, troca a imagem da API, espera o
+   `/health` e **volta sozinho para a versão anterior** se ela não responder em
+   60 segundos.
+5. **Conferência externa** — bate o site pelo endereço público, incluindo as
+   rotas de QR code.
 
-| Última versão no banco | O que o Flyway vai aplicar sozinho |
-|---|---|
-| 1 | V2 até V7 |
-| 2 | V3 até V7 |
-| 3 | V4 até V7 |
-| 4 | V5, V6 e V7 |
-| 5 | V6 e V7 |
-| 6 | Só a V7 |
-| 7 | Nada — já está atualizado |
+Para publicar sem um commit novo: aba **Actions** → workflow **Deploy** →
+*Run workflow*.
 
-O que cada uma faz:
+### A instância não compila nada
 
-- **V2** — adiciona `cpf` em usuários, cria a tabela `sessoes_checkin` e
-  **apaga a coluna `inscricoes.qrcode_token`**. Essa é a parte destrutiva:
-  a coluna era do modelo antigo de QR por aluno, que não existe mais. Não
-  é usada por nada hoje, mas é o motivo do backup.
-- **V3** — adiciona `curso` em usuários.
-- **V4** — adiciona `codigo` em certificados e preenche os já existentes.
-- **V5** — adiciona `segredo` em `sessoes_checkin`, usado pelo código
-  rotativo do QR de check-in. Sessões antigas ganham um segredo aleatório
-  próprio.
-- **V6** — adiciona `capacidade` em eventos (nulo = sem limite de vagas) e
-  cria a tabela `pontuacoes_extras`, dos pontos de gincana lançados pelo
-  admin. Nada é apagado.
-- **V7** — **apaga a tabela `periodos`** e a coluna `periodo_id` de
-  eventos e de `pontuacoes_extras`. É a segunda parte destrutiva (junto
-  com a V2), e o outro motivo do backup.
+A máquina tem 2 GB de RAM, com MySQL e a JVM já ocupando boa parte. Rodar Maven
+e npm ali significava um deploy capaz de derrubar o banco por falta de memória —
+no pior momento possível. O Actions constrói; o servidor só troca arquivos.
 
-  O conceito de "período (semestre)" nunca foi validado com o professor —
-  perguntado se o semestre impactaria a pontuação das palestras, ele
-  respondeu que não precisa relacionar com nada. Na prática ninguém o
-  entendeu como semestre: os dois registros cadastrados se chamavam
-  "Matutino" e "Noturno", com datas idênticas. Pior, a pontuação e o
-  ranking buscavam "o período que contém hoje" e falhavam quando não
-  havia nenhum — as telas parariam de carregar em 21/12/2026, sem erro
-  visível.
+### O que o deploy NÃO toca
 
-  Nada de valor se perde: inscrições, presenças, pontos e certificados
-  não dependiam de período.
-
-> Se a consulta 2 do arquivo retornar alguma linha (`success = 0`), **não
-> suba a aplicação**: há uma migration que falhou no meio e o banco está
-> inconsistente. Restaure o backup ou me chame antes de continuar.
-
-Se o banco tiver apenas dados de teste, vale limpar antes de abrir para os
-alunos — assim ninguém começa com inscrição ou pontuação de mentira.
-
-### Se o banco ainda NÃO existe
-
-1. cPanel → **MySQL® Databases**.
-2. Em *Create New Database*, criar o banco. O cPanel prefixa o nome com a
-   conta — anote o nome **completo** que aparecer depois de criado
-   (algo como `jadir9152_wecti`).
-3. Em *MySQL Users → Add New User*, criar o usuário e uma senha forte.
-   Anote também o nome completo do usuário (também vem prefixado).
-4. Em *Add User To Database*, associar o usuário ao banco e marcar
-   **ALL PRIVILEGES**.
-
-Guarde os três valores — são o `DB_USER`, o `DB_PASSWORD` e o `DB_NAME`.
-As tabelas **não** precisam ser criadas à mão: o Flyway cria tudo no
-primeiro start da API.
-
-> O padrão de `DB_NAME` é `jadir9152_wecti`. Se o seu banco tiver outro
-> nome, defina a variável `DB_NAME` — não é preciso recompilar nada.
+- `/opt/wecti/.env` — os segredos ficam só na máquina
+- Os `.conf` do nginx — quem os edita é o certbot; sobrescrevê-los quebraria o
+  TLS na renovação seguinte
+- O volume do banco
 
 ---
 
-## 3. Variáveis de ambiente da API
+## 3. Rollback
 
-Configurar no painel da hospedagem (ou no `application.yml` externo, em
-`appservers/standalone`, se o painel não tiver campo para variáveis).
+O `.env` guarda a versão no ar em `WECTI_TAG`. Voltar é trocar a tag:
 
-> **Atenção — isto já causou problema neste projeto.** A Integrator Host
-> injeta automaticamente variáveis chamadas `SPRING_DATASOURCE_USERNAME` e
-> `SPRING_DATASOURCE_PASSWORD` no processo, e variável de ambiente sempre
-> vence o `application.yml`. Por isso a aplicação usa um namespace próprio
-> (`app.datasource.*`, lido por `DataSourceConfig`) e **ignora**
-> `spring.datasource.*`. Não renomeie essas propriedades achando que está
-> "padronizando" — a conexão volta a quebrar.
+```bash
+cd /opt/wecti && grep WECTI_TAG .env
+```
 
-### Obrigatórias — a aplicação **não sobe** sem elas
+```bash
+cd /opt/wecti && sed -i 's|^WECTI_TAG=.*|WECTI_TAG=<sha-anterior>|' .env && docker compose -f compose.prod.yml --env-file .env up -d api
+```
+
+Leva segundos: a imagem antiga já está no GHCR, não há recompilação. Os SHAs
+ficam no histórico de commits e na lista de pacotes do repositório.
+
+O deploy faz isso sozinho quando o `/health` falha. Este passo manual é para
+quando o problema aparece **depois** — a API subiu, mas alguma coisa está errada.
+
+---
+
+## 4. Backup e restauração
+
+O dump roda todo dia às 03:00 e guarda 14 dias.
+
+```bash
+ls -lh /opt/wecti/backups
+```
+
+Para conferir que um backup presta — **faça isso antes de precisar dele**:
+
+```bash
+/opt/wecti/scripts/restaurar-backup.sh /opt/wecti/backups/wecti-2026-09-07_0300.sql.gz
+```
+
+Restaura num banco separado (`wecti_teste_restauracao`), mostra a contagem de
+linhas por tabela e **não toca na produção** — o script recusa explicitamente
+restaurar por cima dela.
+
+> **Pendência conhecida:** os dumps ficam no mesmo disco da instância. Isso
+> cobre "apaguei a tabela errada", mas não cobre "perdi a instância". Um
+> snapshot agendado da Lightsail fecharia essa lacuna.
+
+Restauração de verdade, depois de um desastre — com o sistema parado e um dump
+do estado atual guardado antes:
+
+```bash
+cd /opt/wecti && source .env && docker compose -f compose.prod.yml --env-file .env stop api && gunzip -c backups/ARQUIVO.sql.gz | docker exec -i -e MYSQL_PWD="$DB_ROOT_PASSWORD" wecti-db mysql -u root "$DB_NAME" && docker compose -f compose.prod.yml --env-file .env start api
+```
+
+---
+
+## 5. Banco de dados e migrations
+
+O Flyway aplica sozinho, na ordem, o que faltar. O schema **nunca** muda por
+geração automática (`ddl-auto` está fixo em `validate`).
+
+Versão esperada hoje: **7**.
+
+| Migration | O que faz |
+|---|---|
+| **V2** | Adiciona `cpf`, cria `sessoes_checkin` e **apaga `inscricoes.qrcode_token`** — parte destrutiva |
+| **V3** | Adiciona `curso` em usuários |
+| **V4** | Adiciona `codigo` em certificados e preenche os existentes |
+| **V5** | Adiciona `segredo` em `sessoes_checkin` (código rotativo do QR) |
+| **V6** | Adiciona `capacidade` em eventos e cria `pontuacoes_extras` |
+| **V7** | **Apaga a tabela `periodos`** e as colunas `periodo_id` — segunda parte destrutiva |
+
+As duas destrutivas são o motivo de o backup vir antes de qualquer atualização
+de schema. Nada de valor se perde na V7: inscrições, presenças, pontos e
+certificados nunca dependeram de período.
+
+Conferir em que versão o banco está:
+
+```bash
+cd /opt/wecti && source .env && docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" wecti-db mysql -u root "$DB_NAME" -e "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;"
+```
+
+**Se alguma linha tiver `success = 0`, não suba a aplicação**: há uma migration
+que falhou no meio e o banco está inconsistente. Restaure o backup.
+
+---
+
+## 6. Variáveis de ambiente
+
+Ficam em `/opt/wecti/.env`. Modelo em
+[`../deploy/.env.production.exemplo`](../deploy/.env.production.exemplo).
+
+### Sem estas a aplicação não sobe
 
 | Variável | O que é |
 |---|---|
-| `DB_USER` | Usuário do MySQL |
-| `DB_PASSWORD` | Senha do MySQL |
-| `JWT_SECRET` | Chave que assina os tokens de login |
+| `DB_USER`, `DB_PASSWORD`, `DB_ROOT_PASSWORD` | Credenciais do MySQL |
+| `JWT_SECRET` | Assina os tokens de login |
 
-O `JWT_SECRET` precisa ser longo e aleatório, **exclusivo de produção** —
-nunca o mesmo usado em desenvolvimento. Quem tiver essa chave consegue
-forjar um token de admin. Para gerar:
+O `JWT_SECRET` precisa ser exclusivo de produção. Quem o tiver forja um token de
+admin. Gere com `openssl rand -base64 48`.
 
-```bash
-openssl rand -base64 48
-```
+### Sem estas o site não funciona direito
 
-### Obrigatórias para o site funcionar corretamente
+| Variável | Valor |
+|---|---|
+| `CORS_ALLOWED_ORIGINS` | `https://wecti.com.br,https://www.wecti.com.br` |
+| `FRONTEND_URL` | `https://wecti.com.br` |
 
-| Variável | Valor | Por quê |
+A regra do `CORS_ALLOWED_ORIGINS` é sempre a mesma: lista de onde o **navegador**
+chama, ou seja, o endereço do **site** — nunca o da API. Errar isso produz um
+sintoma enganoso: o login falha com "não foi possível entrar" mesmo com a senha
+certa, e funciona por `curl`.
+
+> O endereço da API no frontend **não** vem daqui. Ele é gravado dentro dos
+> arquivos no momento do build, pela variável de repositório `VITE_API_URL` no
+> GitHub. Trocar depois do build não tem efeito nenhum — é preciso publicar de
+> novo.
+
+### Ajustáveis
+
+| Variável | Padrão | Para quê |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `https://jadir9152.c44.integrator.host` | Sem isso o navegador bloqueia todas as chamadas do site para a API |
-| `FRONTEND_URL` | `https://jadir9152.c44.integrator.host` | Endereço de reserva usado ao montar os links dos QR codes |
+| `SPRINGDOC_ENABLED` | `false` | Deixa `/docs` e `/api-docs` fora do ar |
+| `RATE_LIMIT_MAX_FALHAS` | `10` | Tentativas de login erradas antes de bloquear o IP |
+| `RATE_LIMIT_JANELA_MINUTOS` | `15` | Duração do bloqueio |
+| `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `60` | De quanto em quanto tempo o QR se renova |
+| `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `30` | Quanto antes do evento o check-in abre |
+| `CHECKIN_TOLERANCIA_DEPOIS_MINUTOS` | `30` | Quanto depois do fim o check-out ainda vale |
+| `INSCRICAO_TOLERANCIA_MINUTOS` | `15` | Folga para se inscrever depois do início |
 
-O padrão de `CORS_ALLOWED_ORIGINS` libera `localhost` e faixas de rede
-local — correto para desenvolvimento, **errado para produção**. Definir a
-variável substitui o padrão inteiro.
+**Sobre o rate limit:** ele conta **apenas tentativas que falham**. Numa
+palestra a turma inteira acessa pelo mesmo Wi-Fi e sai com o mesmo IP público —
+se acertos contassem, os alunos bloqueariam uns aos outros. Quem digita a senha
+certa nunca entra na conta.
 
-### Recomendadas
+**Sobre a janela do QR:** o QR fica projetado e é o mesmo para a sala inteira,
+então uma foto da tela mandada no grupo serviria para quem não veio. O link
+carrega um código que vale por uma janela curta, e a tela do admin busca o
+próximo sozinha. A janela anterior também é aceita, então na prática o código
+vale entre uma e duas janelas. **Não deixe abaixo de ~30 s** — aluno com
+internet ruim começa a perder check-in legítimo.
 
-| Variável | Valor sugerido | Por quê |
-|---|---|---|
-| `SPRINGDOC_ENABLED` | `false` | Desliga a documentação interativa da API (`/docs` e `/api-docs`). Não há motivo para deixar o mapa dos endpoints aberto ao público |
-| `RATE_LIMIT_MAX_FALHAS` | `10` (padrão) | Tentativas de login com senha errada antes de bloquear o IP |
-| `RATE_LIMIT_JANELA_MINUTOS` | `15` (padrão) | Duração do bloqueio |
-| `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `60` (padrão) | De quanto em quanto tempo o QR de check-in se renova |
-| `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `30` (padrão) | Quanto antes do evento o check-in já abre |
-| `CHECKIN_TOLERANCIA_DEPOIS_MINUTOS` | `30` (padrão) | Quanto depois do fim o check-out ainda é aceito |
-
-Sobre a renovação do QR: ele é o mesmo para a sala inteira — está
-projetado, não há como ser individual. Para que uma foto da tela não
-sirva para quem não veio, o link embutido carrega um código que vale só
-por uma janela curta, e a tela do admin busca o QR seguinte sozinha. Um
-print mandado no grupo vence junto com a janela em que foi tirado.
-
-Diminuir `CHECKIN_JANELA_CODIGO_SEGUNDOS` aperta o cerco; aumentar dá
-mais folga para quem escaneou e ainda precisou fazer login antes de
-confirmar. A janela anterior também é aceita, então na prática o código
-vale entre uma e duas janelas. **Não deixe abaixo de uns 30 segundos** —
-abaixo disso, aluno com internet ruim começa a perder check-in legítimo.
-
-As tolerâncias existem porque a sessão de check-in agora vale pelo
-horário do próprio evento, e não mais por 6 horas a partir de quando foi
-gerada. Se as palestras costumam atrasar, aumente
-`CHECKIN_TOLERANCIA_DEPOIS_MINUTOS`.
-
-Sobre o limite de tentativas: ele conta **apenas tentativas que falham**.
-Numa palestra, a turma toda acessa pelo mesmo Wi-Fi e sai com o mesmo IP
-público — se o contador somasse acessos bem-sucedidos, os alunos
-bloqueariam uns aos outros. Quem digita a senha certa nunca entra na
-conta. O bloqueio vale para as três rotas de autenticação em conjunto,
-então não dá para contorná-lo trocando de rota.
+**Sobre a folga de inscrição:** existe para quem chega atrasado. Sem ela, quem
+aparece 5 minutos depois do começo não se inscreve, logo não faz check-in, logo
+não pontua — ficaria de fora de uma palestra em que está presente. **Não passe
+de 30 minutos** sem mexer também em `CHECKIN_TOLERANCIA_ANTES_MINUTOS`.
 
 ---
 
-## 4. Frontend
-
-O `dist/` gerado aqui contém **as duas partes do site**:
-
-| No `dist/` | O que é | Endereço no ar |
-|---|---|---|
-| `home.html` | Landing pública do evento (palestrantes, galeria, sobre) | `/` — é a página inicial |
-| `index.html` + `assets/` | O sistema em React (login, eventos, check-in, certificados) | `/login`, `/eventos`, `/checkin/...` |
-| `palestrantes/*.html` | Uma página por palestrante | `/palestrantes/patricia-papa.html` |
-| `fotos/` | Fotos da galeria e dos palestrantes | — |
-| `.htaccess` | Faz `/` cair na landing e as rotas do React caírem no `index.html` | — |
-
-Quem abre o domínio vê a landing; os botões **Primeiro acesso** e
-**Login** no topo levam para o sistema. É o `.htaccess` que amarra isso —
-sem ele, `/` abriria o sistema direto e as rotas do React dariam 404.
-
-Antes de gerar o build, apontar `frontend/.env.production` para o
-endereço **HTTPS** da API:
-
-```
-VITE_API_URL=https://jadir9152.c44.integrator.host
-```
-
-Depois:
+## 7. Diagnóstico
 
 ```bash
-cd frontend
-npm ci
-npm run build
+cd /opt/wecti && docker compose -f compose.prod.yml --env-file .env ps
 ```
-
-### Publicando no cPanel, passo a passo
-
-**No seu computador:**
-
-1. Confirme o conteúdo de `frontend/.env.production` (o endereço da API).
-2. Gere o build:
-   ```bash
-   cd frontend
-   npm ci
-   npm run build
-   ```
-3. Confira que está tudo no `dist/`:
-   ```bash
-   ls -a dist/
-   ```
-   Tem que aparecer `.htaccess`, `index.html`, `home.html`, `assets/`,
-   `palestrantes/` e `fotos/`.
-4. Compacte o **conteúdo** de `dist/`, não a pasta. Ao abrir o zip você
-   deve ver `index.html` na raiz — se vir uma pasta `dist` dentro, o site
-   fica em `/dist/` e não funciona.
-   - No Windows: entre em `dist`, `Ctrl+A`, botão direito → *Enviar para →
-     Pasta compactada*.
-   - O Explorer do Windows **não** inclui arquivos que começam com ponto
-     por padrão. Se o `.htaccess` não entrar no zip, envie ele à parte
-     (passo 9).
-
-**No cPanel:**
-
-5. **Gerenciador de arquivos** → entrar em `public_html`.
-6. Clicar em **Settings** (canto superior direito) → marcar
-   **Show Hidden Files (dotfiles)** → *Save*. Faça isso **agora**, antes
-   de subir: sem essa opção você não enxerga o `.htaccess` e não tem como
-   conferir nada.
-7. Se já houver site antigo: selecionar tudo e **Compress** para
-   `backup-site-antigo.zip` (fica guardado), depois apagar os originais.
-8. **Upload** do zip → voltar para `public_html` → botão direito no zip →
-   **Extract** → apagar o zip depois.
-9. Conferir que `public_html` tem: `index.html`, `home.html`, `assets/`,
-   `palestrantes/`, `fotos/` e **`.htaccess`**.
-   Se o `.htaccess` não estiver lá:
-   - **+ File** → nome `.htaccess` → **Create New File**
-   - botão direito nele → **Edit** → colar o conteúdo de
-     `frontend/public/.htaccess` → *Save Changes*
-
-### Conferindo
-
-Abra o site e teste **as duas coisas separadamente**:
-
-1. `http://jadir9152.c44.integrator.host` — deve carregar a tela de login.
-   Se aparecer página em branco, abra o console do navegador (F12): erro
-   404 em arquivo `.js` normalmente significa que a pasta `dist` foi
-   junto no zip.
-2. `http://jadir9152.c44.integrator.host/validar` — **este é o teste do
-   `.htaccess`**. Se carregar a tela de validação, está certo. Se der
-   **404 do servidor**, o `.htaccess` não está funcionando, e todos os
-   links de QR code vão falhar.
-
-O segundo teste é o que costuma ser esquecido, porque a home funciona sem
-o `.htaccess` — o problema só aparece quando alguém escaneia um QR.
-
-O `.htaccess` necessário **já está no projeto** (`frontend/public/.htaccess`)
-e é copiado para `dist/` automaticamente no build. Ele existe porque as
-rotas do site (`/eventos`, `/validar/...`, `/checkin/confirmar/...`) só
-existem no navegador, não como arquivos no servidor — sem ele, abrir um
-link de QR code direto devolveria 404. Só confirme que o arquivo subiu:
-alguns clientes de FTP escondem arquivos que começam com ponto.
-
-### Se a API ficar em um endereço diferente do site
-
-O `.env.production` está apontando para o mesmo endereço do site
-(`https://jadir9152.c44.integrator.host`). Se o professor decidir separar
-— por exemplo, a API em um subdomínio ou sob um caminho `/api` — basta
-ajustar duas coisas, e nada mais no código:
-
-| Cenário | `VITE_API_URL` (frontend) | `CORS_ALLOWED_ORIGINS` (API) |
-|---|---|---|
-| Mesmo endereço (atual) | `https://jadir9152.c44.integrator.host` | `https://jadir9152.c44.integrator.host` |
-| API sob `/api` | `https://jadir9152.c44.integrator.host/api` | `https://jadir9152.c44.integrator.host` |
-| API em subdomínio | `https://api.SEUDOMINIO` | `https://SEUDOMINIO` (a origem do **site**, não da API) |
-
-A regra do `CORS_ALLOWED_ORIGINS` é sempre a mesma: ele lista de onde o
-**navegador** está chamando, ou seja, o endereço do site — nunca o da API.
-
----
-
-## 5. Backend
 
 ```bash
-cd backend
-mvn clean package
+cd /opt/wecti && docker compose -f compose.prod.yml --env-file .env logs -f api
 ```
 
-O arquivo gerado é `backend/target/wecti-api-0.1.0-SNAPSHOT.jar` (cerca de
-74 MB — contém tudo, inclusive as fontes do certificado).
-
-Repare que **não** usamos `-DskipTests`: os testes automatizados rodam
-como parte do build e não precisam de banco (usam H2 em memória). Se algum
-falhar, o `.jar` não é gerado — que é justamente o objetivo, para não
-publicar uma versão com regra de negócio quebrada.
-
-### Publicando pelo Integrator Spring Boot
-
-O plugin fica em cPanel → seção **Avançado** → **Integrator Spring Boot**.
-
-1. **Se já houver uma aplicação rodando ali, pare ela primeiro.** Duas
-   instâncias tentando a mesma porta fazem a nova falhar com *Port already
-   in use*.
-2. **Upload do `.jar`** (`wecti-api-0.1.0-SNAPSHOT.jar`, ~74 MB). Se o
-   upload cair no meio pelo navegador, envie por FTP e depois aponte o
-   caminho no plugin.
-3. **Anote a porta** que o plugin atribuir. Ela é interna — o visitante
-   nunca a digita; o servidor web repassa. Se houver campo de porta,
-   ela corresponde à variável `SERVER_PORT`.
-4. **Configurar as variáveis de ambiente** (seção 3). Duas formas:
-
-   **a) O plugin tem campo de variáveis** — preencha ali, uma por linha,
-   no formato `NOME=valor`.
-
-   **b) O plugin não tem campo** — crie um `application.yml` externo em
-   `appservers/standalone` (pelo Gerenciador de arquivos). O conteúdo é
-   YAML, não `NOME=valor`:
-
-   ```yaml
-   app:
-     datasource:
-       username: jadir9152_seuusuario
-       password: SUA_SENHA_DO_BANCO
-     cors:
-       allowed-origins: https://jadir9152.c44.integrator.host
-     frontend-url: https://jadir9152.c44.integrator.host
-   jwt:
-     secret: COLE_AQUI_O_VALOR_GERADO
-   springdoc:
-     api-docs:
-       enabled: false
-     swagger-ui:
-       enabled: false
-   ```
-
-   > Repare que aqui vão os **nomes das propriedades** (`app.datasource.
-   > username`), não os nomes das variáveis (`DB_USER`). Os dois caminhos
-   > levam ao mesmo lugar — variável de ambiente **ou** arquivo, não
-   > precisa dos dois.
-
-5. **Iniciar** a aplicação.
-6. **Abrir o log** — este passo não é opcional. Uma aplicação que "iniciou"
-   no painel pode ter morrido no boot; só o log conta a verdade.
-
-### Lendo o log
-
-Start bem-sucedido, na ordem:
+Start bem-sucedido, nesta ordem:
 
 ```
-Successfully validated N migrations       (ou "Migrating schema ... to version 4")
-Tomcat started on port XXXX
+Successfully validated N migrations    (ou "Migrating schema ... to version 7")
+Tomcat started on port 8080
 Started WectiApiApplication in X.X seconds
 ```
 
-Erros que já apareceram neste projeto:
+### Erros já vistos neste projeto
 
 | No log | Causa | O que fazer |
 |---|---|---|
-| `PlaceholderResolutionException: ... app.datasource.username` | Falta `DB_USER`/`DB_PASSWORD` (ou o `application.yml` externo sumiu) | Conferir a seção 3. Se estiver tudo certo, é `.jar` antigo — refaça o `mvn clean package` |
-| `Access denied for user 'X'@'%'` (sem citar banco) | Senha errada, ou o usuário não existe | Conferir `DB_USER` / `DB_PASSWORD` |
-| `Access denied for user 'X'@'%' to database 'Y'` | O usuário existe, mas **não está associado** ao banco `Y` — ou `DB_NAME` está errado | Conferir se `DB_NAME` é o nome completo (com prefixo da conta) e refazer o *Add User To Database* com ALL PRIVILEGES |
-| `Unknown database` | O banco não existe com esse nome | Criar em MySQL® Databases, ou corrigir `DB_NAME` |
-| `Port already in use` | Instância anterior ainda rodando | Parar a antiga no plugin |
-| `Communications link failure` | Host/porta do MySQL diferentes | Conferir `DB_HOST` / `DB_PORT` |
+| `PlaceholderResolutionException: ... app.datasource.username` | Falta `DB_USER`/`DB_PASSWORD` no `.env` | Conferir a seção 6 |
+| `Access denied for user 'X'@'%'` | Senha errada ou usuário inexistente | Conferir `DB_USER`/`DB_PASSWORD` |
+| `Access denied ... to database 'Y'` | Usuário não associado ao banco, ou `DB_NAME` errado | Conferir `DB_NAME` |
+| `Unknown database` | Banco não existe com esse nome | Conferir `DB_NAME` |
+| `Communications link failure` | O contêiner do banco não subiu | `docker compose ps`; ver os logs do `db` |
+| `Port already in use` | Instância anterior ainda rodando | `docker compose down` e subir de novo |
 
-### Conferindo que a API respondeu
+### Site fora do ar
 
-Com a aplicação no ar, abra no navegador:
-
-```
-http://jadir9152.c44.integrator.host/health
+```bash
+sudo nginx -t && sudo systemctl status nginx --no-pager
 ```
 
-Deve responder algo simples de status. Se der 404, o servidor web não está
-repassando as chamadas para a aplicação — nesse caso é configuração de
-proxy do plugin, e vale abrir chamado com a Integrator.
-
-No log de um start bem-sucedido você deve ver, em ordem:
-
-```
-Successfully validated N migrations   (ou "Migrating schema ... to version 4")
-Tomcat started on port XXXX
-Started WectiApiApplication in X.X seconds
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/health
 ```
 
-Se aparecer `PlaceholderResolutionException` citando `app.datasource.url`,
-`DB_USER` ou `JWT_SECRET`, é variável de ambiente faltando — volte à
-seção 3. (Esse erro já apareceu neste projeto por causa de um `.jar`
-antigo, gerado antes das variáveis existirem: se persistir, refaça o
-`mvn clean package` e suba o arquivo novo.)
+Se o `/health` interno responde 200 mas o site não abre, o problema é nginx ou
+DNS, não a aplicação.
 
-As migrations do banco (Flyway) rodam sozinhas no primeiro start, na
-ordem correta. O schema **nunca** é alterado por geração automática.
+### Certificado
+
+Renova sozinho pelo `certbot.timer`. Para conferir:
+
+```bash
+sudo certbot certificates && systemctl list-timers --no-pager | grep certbot
+```
+
+### Memória
+
+A máquina tem 2 GB e um swap de 2 GB. Se o sistema ficar lento, veja se está em
+swap:
+
+```bash
+free -h && docker stats --no-stream
+```
+
+Swap em uso constante significa que a máquina está pequena para a carga — nesse
+caso, aumentar o plano da Lightsail é a saída, não mais ajuste.
 
 ---
 
-## 6. Primeiro acesso
+## 8. Primeiro usuário admin
 
-O sistema não cria um usuário administrador sozinho. Para o primeiro:
+O sistema não cria administrador sozinho.
 
-1. cPanel → **phpMyAdmin** → selecionar o banco → aba **SQL** → colar,
-   trocando nome, e-mail e CPF pelos reais:
+```bash
+cd /opt/wecti && source .env && docker exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" wecti-db mysql -u root "$DB_NAME" -e "INSERT INTO usuarios (id, nome, email, senha, perfil, cpf, criado_em) VALUES (UUID(), 'Nome do Administrador', 'admin@unicid.edu.br', 'definir-pela-tela', 'ADMIN', '12345678901', NOW());"
+```
 
-   ```sql
-   INSERT INTO usuarios (id, nome, email, senha, perfil, cpf, criado_em)
-   VALUES (UUID(), 'Nome do Administrador', 'admin@unicid.edu.br',
-           'definir-pela-tela', 'ADMIN', '12345678901', NOW());
-   ```
+O campo `senha` recebe esse texto de propósito: não é um hash, então ninguém
+entra com ele. Em seguida, abra `https://wecti.com.br/recuperar-senha` e informe
+o e-mail e o CPF cadastrados — isso define a senha real.
 
-   O campo `senha` recebe esse texto de propósito: ele **não** é uma senha
-   válida (não é um hash), então ninguém consegue entrar com ele. É
-   substituído no passo seguinte.
-
-2. Abrir `https://jadir9152.c44.integrator.host/recuperar-senha` e informar
-   o e-mail e o CPF cadastrados. Isso define a senha real e já devolve o
-   acesso.
-
-O CPF é obrigatório para Admin justamente por isso: é o identificador que
+O CPF é obrigatório para admin justamente por isso: é o identificador que
 permite recuperar o acesso.
 
-Feito isso, o admin já pode cadastrar eventos direto pela tela. Não há
-mais nenhum passo de configuração antes do primeiro evento.
-
 ---
 
-## 7. Backup
+## 9. Conferir depois de publicar
 
-**Antes de liberar para os alunos.** Perder o banco significa perder
-inscrições, presenças e certificados emitidos — dados que não podem ser
-reconstruídos.
+O deploy já testa os itens marcados com ✅ automaticamente. Os demais precisam
+de gente.
 
-1. Agendar um dump diário do MySQL no painel (procure por *Backup* ou
-   *Cron Jobs*):
-   ```bash
-   mysqldump -u USUARIO -p'SENHA' NOME_DO_BANCO > backup-$(date +\%F).sql
-   ```
-2. Definir por quantos dias guardar.
-3. **Testar uma restauração** em um banco vazio. Backup que nunca foi
-   restaurado não conta como backup.
-
----
-
-## 8. Conferir depois de subir
-
-- [ ] `https://jadir9152.c44.integrator.host` abre a **landing do evento**
-      (não a tela de login) e com cadeado fechado
-- [ ] Os botões **Primeiro acesso** e **Login** no topo da landing levam
-      para o sistema
-- [ ] A seção Palestrantes aparece e clicar numa foto abre a página do
-      palestrante
-- [ ] `http://jadir9152.c44.integrator.host` redireciona sozinho para HTTPS
-- [ ] Login funciona pelo site (se falhar com "verifique seus dados" mas
-      funcionar via `curl`, o problema é `CORS_ALLOWED_ORIGINS`)
+- ✅ `https://api.wecti.com.br/health` responde 200
+- ✅ `https://wecti.com.br/` abre a **landing**, não a tela de login
+- ✅ `https://wecti.com.br/validar/ABC123` abre o sistema (caminho do QR de
+  certificado)
+- ✅ `https://wecti.com.br/checkin/confirmar/xyz` abre o sistema
+- [ ] `http://wecti.com.br` redireciona para HTTPS, com cadeado fechado
+- [ ] Os botões **Primeiro acesso** e **Login** na landing levam ao sistema
 - [ ] Um aluno consegue se cadastrar e se inscrever
-- [ ] O QR de check-in gerado aponta para `https://jadir9152.c44.integrator.host/...`
-- [ ] Um celular consegue ler o QR e confirmar presença
 - [ ] O QR na tela do admin **muda sozinho** a cada ~1 minuto
-- [ ] Um link de QR copiado e aberto 3 minutos depois é recusado (é a
-      trava contra repassar o QR para quem não está na sala)
+- [ ] Um celular lê o QR e confirma presença
+- [ ] Um link de QR copiado e aberto 3 minutos depois é **recusado**
 - [ ] O certificado sai em PDF e o código valida em `/validar`
-- [ ] `/docs` **não** abre (se `SPRINGDOC_ENABLED=false`)
+- [ ] `/docs` **não** abre
 - [ ] 11 tentativas de login com senha errada devolvem `429`
 
+O teste do QR vencido é o que costuma ser esquecido, e é justamente a trava
+contra repassar o código para quem não está na sala.
+
 ---
 
-## Fazer um piloto primeiro
+## 10. Antes do evento
 
-Antes de liberar para todos os alunos, rodar **um evento real com turma
-reduzida**, do cadastro até a emissão do certificado. É a forma mais
-barata de descobrir um problema de configuração — com 20 pessoas em vez
-de 300.
+**Rode um piloto com turma reduzida**, do cadastro à emissão do certificado. É a
+forma mais barata de descobrir um problema de configuração — com 20 pessoas em
+vez de 300.
+
+No dia, tenha à mão:
+
+- O comando de rollback (seção 3)
+- `docker compose logs -f api` aberto num terminal
+- O contato de quem tem acesso SSH à instância

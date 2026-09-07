@@ -1,0 +1,241 @@
+# Publica o WECTI em producao (instancia Lightsail "wecti-prod").
+#
+# A instancia NAO compila nada. Ela tem 2 GB de RAM, ja ocupados por MySQL e
+# pela JVM; rodar Maven e npm ali significava um deploy capaz de derrubar o
+# banco por falta de memoria. Aqui o Actions constroi, e o servidor so troca
+# arquivo estatico e imagem de conteiner.
+#
+# Ordem: testes -> (imagem | frontend) -> deploy.
+# Nada chega em producao sem os testes passarem.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Dois deploys ao mesmo tempo deixariam o servidor num estado que nenhum dos
+# dois descreve. O segundo espera; nenhum e cancelado no meio.
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+env:
+  IMAGEM: ghcr.io/joaomendoncadev/wecti-api
+
+jobs:
+  testes:
+    name: Testes do backend
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: wecti
+          MYSQL_USER: wecti
+          MYSQL_PASSWORD: wecti
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u wecti -pwecti"
+          --health-interval 5s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+      - name: mvn verify
+        working-directory: ./backend
+        run: mvn -B -e verify
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: wecti
+          DB_USER: wecti
+          DB_PASSWORD: wecti
+
+  imagem:
+    name: Imagem da API
+    needs: testes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          # A tag com o SHA e o que permite rollback para uma versao exata.
+          # "latest" existe so por conveniencia de leitura.
+          tags: |
+            ${{ env.IMAGEM }}:${{ github.sha }}
+            ${{ env.IMAGEM }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  frontend:
+    name: Build do frontend
+    needs: testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias
+        working-directory: ./frontend
+        run: npm ci
+      - name: Gravar o endereco da API
+        # Precisa entrar ANTES do build: o Vite grava este valor dentro dos
+        # arquivos gerados. Trocar a variavel depois nao muda nada.
+        working-directory: ./frontend
+        run: echo "VITE_API_URL=${{ vars.VITE_API_URL || 'https://api.wecti.com.br' }}" > .env.production
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
+      - name: Conferir que o build tem as duas partes do site
+        working-directory: ./frontend
+        run: |
+          # home.html e a landing publica; index.html e a casca do React.
+          # Se uma das duas sumir, o site sobe pela metade e so se descobre
+          # quando um aluno abre o link.
+          test -f dist/home.html  || { echo "::error::dist/home.html ausente"; exit 1; }
+          test -f dist/index.html || { echo "::error::dist/index.html ausente"; exit 1; }
+          test -d dist/assets     || { echo "::error::dist/assets ausente"; exit 1; }
+          echo "ok: home.html, index.html e assets/ presentes"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: frontend/dist
+          retention-days: 7
+          include-hidden-files: true
+
+  deploy:
+    name: Publicar em producao
+    needs: [imagem, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Preparar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Enviar frontend
+        # --delete remove do servidor o que saiu do build (assets antigos com
+        # hash no nome se acumulariam para sempre sem isso).
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy.pem -o BatchMode=yes" \
+            dist/ ubuntu@${{ secrets.SSH_HOST }}:/var/www/wecti/
+
+      - name: Enviar configuracao de deploy
+        # Compose e scripts passam a vir do repositorio, para o servidor nunca
+        # divergir do que esta versionado. O .env NAO e enviado (segredos vivem
+        # so na maquina), e os .conf do Nginx tambem nao: quem os edita e o
+        # certbot, e sobrescreve-los a cada deploy quebraria o TLS.
+        run: |
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy.pem -o BatchMode=yes" \
+            deploy/compose.prod.yml deploy/scripts \
+            ubuntu@${{ secrets.SSH_HOST }}:/opt/wecti/
+
+      - name: Trocar a versao da API, com rollback se o health falhar
+        run: |
+          ssh -i ~/.ssh/deploy.pem -o BatchMode=yes \
+            ubuntu@${{ secrets.SSH_HOST }} \
+            "NOVA='${{ github.sha }}' bash -s" <<'REMOTO'
+          set -euo pipefail
+          cd /opt/wecti
+
+          ANTERIOR="$(grep -E '^WECTI_TAG=' .env | cut -d= -f2- || true)"
+          echo "versao no ar antes: ${ANTERIOR:-<nenhuma>}"
+          echo "versao a publicar:  $NOVA"
+
+          if grep -qE '^WECTI_TAG=' .env; then
+            sed -i "s|^WECTI_TAG=.*|WECTI_TAG=$NOVA|" .env
+          else
+            echo "WECTI_TAG=$NOVA" >> .env
+          fi
+
+          docker compose -f compose.prod.yml --env-file .env pull api
+          docker compose -f compose.prod.yml --env-file .env up -d api
+
+          echo "aguardando /health..."
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -fs -m 3 http://127.0.0.1:8080/health > /dev/null; then ok=1; break; fi
+            sleep 2
+          done
+
+          if [ -z "$ok" ]; then
+            echo "::error::a API nao respondeu /health em 60s"
+            if [ -n "$ANTERIOR" ] && [ "$ANTERIOR" != "latest" ]; then
+              echo "voltando para $ANTERIOR"
+              sed -i "s|^WECTI_TAG=.*|WECTI_TAG=$ANTERIOR|" .env
+              docker compose -f compose.prod.yml --env-file .env up -d api
+              echo "rollback aplicado; conferindo..."
+              curl -fs -m 5 http://127.0.0.1:8080/health > /dev/null \
+                && echo "sistema de volta na versao anterior" \
+                || echo "::error::rollback tambem nao respondeu - precisa de intervencao manual"
+            else
+              echo "::error::sem versao anterior conhecida para voltar"
+            fi
+            docker compose -f compose.prod.yml logs --tail=60 api
+            exit 1
+          fi
+
+          echo "API no ar na versao $NOVA"
+          docker image prune -f --filter "until=168h" > /dev/null 2>&1 || true
+          REMOTO
+
+      - name: Conferir o site de fora
+        # O /health interno diz que a API subiu. Isto confere o que o visitante
+        # de fato recebe - inclusive as rotas de QR code, que sao o caminho que
+        # quebra sem ninguem perceber ate alguem escanear um codigo.
+        run: |
+          falhou=0
+          checar() {
+            code=$(curl -s -o /tmp/corpo -w '%{http_code}' -m 15 "$1")
+            titulo=$(grep -m1 -o '<title>[^<]*</title>' /tmp/corpo || echo '(sem title)')
+            if [ "$code" != "200" ]; then
+              echo "::error::$1 devolveu $code"; falhou=1
+            elif ! echo "$titulo" | grep -q "$2"; then
+              echo "::error::$1 devolveu o HTML errado: $titulo"; falhou=1
+            else
+              echo "ok  $1  ->  $titulo"
+            fi
+          }
+          if curl -fs -m 15 https://api.wecti.com.br/health > /dev/null; then
+            echo "ok  api /health"
+          else
+            echo "::error::api /health falhou"; falhou=1
+          fi
+          # A raiz tem que entregar a landing, e nao a casca do React.
+          checar https://wecti.com.br/                       'Tech Revolution'
+          # Rotas do React Router: sao os links dos QR codes.
+          checar https://wecti.com.br/login                  'Sistema de Eventos'
+          checar https://wecti.com.br/validar/ABC123         'Sistema de Eventos'
+          checar https://wecti.com.br/checkin/confirmar/xyz  'Sistema de Eventos'
+          exit $falhou
