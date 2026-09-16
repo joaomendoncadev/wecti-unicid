@@ -128,6 +128,36 @@ jobs:
           echo "style.css versionado como ?v=$V em:"
           grep -rl "style.css?v=$V" dist --include='*.html' | sed 's|^|  |'
 
+      - name: Versionar as URLs dos regulamentos em PDF
+        # Mesma armadilha do style.css, e pelo mesmo motivo: o endereco
+        # "inscricoes/hackathon.pdf" e fixo, mas o conteudo troca quando a
+        # organizacao publica uma revisao do regulamento. O Nginx nao manda
+        # Cache-Control para .pdf, entao o navegador escolhe sozinho por
+        # quanto tempo guardar - e quem ja abriu o regulamento antes pode
+        # continuar lendo a versao velha, com prazo e datas que nao valem
+        # mais, sem nenhum sinal de que existe outra.
+        #
+        # Aqui doi mais que no CSS: o aluno decide quantas pessoas poe na
+        # equipe e ate quando se inscreve com base no que esta nesse arquivo.
+        #
+        # Hash do CONTEUDO: o deploy que nao mexeu nos PDFs mantem as mesmas
+        # URLs e o navegador segue aproveitando o que ja baixou.
+        working-directory: ./frontend
+        run: |
+          for pdf in dist/inscricoes/*.pdf; do
+            nome=$(basename "$pdf")
+            V=$(md5sum "$pdf" | cut -c1-8)
+            find dist -name '*.html' -exec \
+              sed -i "s|\(href=\"[^\"]*inscricoes/$nome\)\"|\1?v=$V\"|g" {} +
+            echo "  $nome -> ?v=$V"
+          done
+          # Um PDF sem ?v= e um link que ficou para tras numa renomeacao.
+          if grep -rn 'inscricoes/[^"]*\.pdf"' dist --include='*.html'; then
+            echo "::error::link de PDF acima ficou sem versao"
+            exit 1
+          fi
+          echo "ok: todos os links de PDF versionados"
+
       - name: Conferir que o build tem as duas partes do site
         working-directory: ./frontend
         run: |
