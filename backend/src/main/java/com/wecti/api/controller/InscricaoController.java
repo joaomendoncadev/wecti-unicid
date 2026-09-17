@@ -2,6 +2,7 @@ package com.wecti.api.controller;
 
 import com.wecti.api.domain.Perfil;
 import com.wecti.api.dto.InscricaoResponse;
+import com.wecti.api.dto.InscritoEventoResponse;
 import com.wecti.api.security.AuthenticatedUser;
 import com.wecti.api.service.InscricaoService;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,16 @@ public class InscricaoController {
         return inscricaoService.listarPorEvento(eventoId).stream()
                 .map(inscricaoService::montarResposta)
                 .toList();
+    }
+
+    /**
+     * Lista de contato dos inscritos - nome e e-mail, para o admin falar
+     * com a turma. Separada de {@code GET /eventos/{id}/inscricoes}, que
+     * devolve a inscricao e identifica o aluno so por UUID.
+     */
+    @GetMapping("/eventos/{eventoId}/inscritos")
+    public List<InscritoEventoResponse> listarInscritos(@PathVariable UUID eventoId) {
+        return inscricaoService.listarInscritosDoEvento(eventoId);
     }
 
     @GetMapping("/me/inscricoes")

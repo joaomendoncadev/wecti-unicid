@@ -489,6 +489,73 @@ paths:
                 items:
                   $ref: '#/components/schemas/Inscricao'
 
+  /eventos/{eventoId}/inscritos:
+    parameters:
+      - name: eventoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Inscricoes]
+      summary: Lista de contato dos alunos inscritos no evento (admin)
+      description: >
+        Nome e e-mail de quem está inscrito no evento, para a organização
+        entrar em contato com a turma (avisar mudança de sala, enviar
+        material, cobrar presença).
+
+
+        Difere de `GET /eventos/{eventoId}/inscricoes`, que devolve a
+        inscrição em si e identifica o aluno só por `aluno_id` — quem
+        queria os nomes tinha de cruzar cada UUID com `GET /usuarios`.
+
+
+        **Só inscrições ATIVAS.** "Inscrito" e "já foi inscrito um dia"
+        são coisas diferentes: quem cancelou devolveu a vaga e não deve
+        receber o e-mail da turma. Some da lista no instante do
+        cancelamento.
+
+
+        **Sempre atualizada por construção**: é uma consulta ao banco a
+        cada chamada, sem cache, sem cópia materializada e sem job de
+        sincronia. Não existe estado intermediário para envelhecer — o
+        que a lista mostra é o que está na tabela naquele instante.
+
+
+        Ordenada por nome, que é como a lista é lida por gente.
+      responses:
+        '200':
+          description: Alunos inscritos no evento
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    aluno_id:
+                      type: string
+                      format: uuid
+                    nome:
+                      type: string
+                    email:
+                      type: string
+                      format: email
+                    rgm:
+                      type: string
+                      nullable: true
+                      description: >
+                        Nulo só em cadastro anterior à obrigatoriedade do
+                        RGM - ver a constraint chk_rgm_formato em V1__init.sql.
+                    inscrito_em:
+                      type: string
+                      format: date-time
+        '403':
+          description: Perfil sem permissão (a lista expõe e-mail de aluno)
+        '404':
+          description: Evento não encontrado
+
   /me/inscricoes:
     get:
       tags: [Inscricoes]

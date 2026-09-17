@@ -7,6 +7,7 @@ import com.wecti.api.domain.InscricaoStatus;
 import com.wecti.api.domain.Usuario;
 import com.wecti.api.dto.CheckinResponse;
 import com.wecti.api.dto.InscricaoResponse;
+import com.wecti.api.dto.InscritoEventoResponse;
 import com.wecti.api.exception.ConflitoException;
 import com.wecti.api.exception.RecursoNaoEncontradoException;
 import com.wecti.api.exception.RegraNegocioException;
@@ -162,6 +163,29 @@ public class InscricaoService {
 
     public List<Inscricao> listarPorEvento(UUID eventoId) {
         return inscricaoRepository.findByEventoId(eventoId);
+    }
+
+    /**
+     * Nome e e-mail de quem esta inscrito no evento, para o admin falar
+     * com a turma.
+     *
+     * <p><b>Sempre atualizada por construcao.</b> E uma consulta ao banco
+     * a cada chamada - nao ha cache, copia materializada nem job de
+     * sincronia. Nao existe estado intermediario para envelhecer: o que a
+     * lista mostra e o que esta na tabela naquele instante. Uma inscricao
+     * feita ha um segundo ja aparece; um cancelamento some na hora.
+     *
+     * <p>Confere o evento antes de consultar para separar "evento que nao
+     * existe" (404) de "evento sem ninguem inscrito" (lista vazia). Sem
+     * isso, um UUID errado devolveria 200 com lista vazia e o admin ficaria
+     * procurando alunos que nunca estiveram ali.
+     */
+    @Transactional(readOnly = true)
+    public List<InscritoEventoResponse> listarInscritosDoEvento(UUID eventoId) {
+        if (!eventoRepository.existsById(eventoId)) {
+            throw new RecursoNaoEncontradoException("Evento nao encontrado: " + eventoId);
+        }
+        return inscricaoRepository.findInscritosDoEvento(eventoId, InscricaoStatus.ATIVA);
     }
 
     public List<Inscricao> listarDoAluno(UUID alunoId, String status) {

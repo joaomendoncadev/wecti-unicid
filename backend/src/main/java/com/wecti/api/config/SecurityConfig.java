@@ -107,6 +107,9 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/eventos/*/inscricoes").hasRole("ALUNO")
                         .requestMatchers(HttpMethod.GET, "/eventos/*/inscricoes").hasRole("ADMIN")
+                        // Lista nome e e-mail dos inscritos: contato de aluno,
+                        // entao so admin - o aluno nao ve a turma.
+                        .requestMatchers(HttpMethod.GET, "/eventos/*/inscritos").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/usuarios").hasRole("ADMIN")
