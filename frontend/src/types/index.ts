@@ -116,6 +116,20 @@ export interface EventoCheckin {
   percentual_presenca: number | null;
 }
 
+/**
+ * Linha da lista de contato dos inscritos num evento
+ * (GET /eventos/{id}/inscritos, só admin). Traz a pessoa, não a
+ * inscrição: é o que a organização usa para falar com a turma.
+ */
+export interface InscritoEvento {
+  aluno_id: string;
+  nome: string;
+  email: string;
+  /** Nulo só em cadastro anterior à obrigatoriedade do RGM. */
+  rgm: string | null;
+  inscrito_em: string;
+}
+
 // Igual ao Perfil: o enum Java (TipoSessaoCheckin.ENTRADA/.SAIDA) e
 // serializado como veio, em maiusculas - a naming strategy SNAKE_CASE
 // so afeta nomes de campo, nao valores de enum.

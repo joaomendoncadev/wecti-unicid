@@ -1,5 +1,5 @@
 import api from './api';
-import type { Inscricao } from '../types';
+import type { Inscricao, InscritoEvento } from '../types';
 
 export function inscreverEmEvento(eventoId: string) {
   return api.post<Inscricao>(`/eventos/${eventoId}/inscricoes`).then((res) => res.data);
@@ -7,6 +7,17 @@ export function inscreverEmEvento(eventoId: string) {
 
 export function listarInscritosDoEvento(eventoId: string) {
   return api.get<Inscricao[]>(`/eventos/${eventoId}/inscricoes`).then((res) => res.data);
+}
+
+/**
+ * Nome e e-mail de quem está inscrito no evento (só admin).
+ *
+ * Diferente de listarInscritosDoEvento acima, que devolve a inscrição e
+ * identifica o aluno só por aluno_id - por ali seria preciso cruzar cada
+ * UUID com GET /usuarios para chegar a um nome.
+ */
+export function listarInscritosComContato(eventoId: string) {
+  return api.get<InscritoEvento[]>(`/eventos/${eventoId}/inscritos`).then((res) => res.data);
 }
 
 export function listarMinhasInscricoes(status?: 'futuros' | 'historico') {

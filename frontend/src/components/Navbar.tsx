@@ -21,6 +21,7 @@ const MENU_ALUNO: ItemMenu[] = [
 const MENU_ADMIN: ItemMenu[] = [
   { to: '/admin/eventos', label: 'Eventos' },
   { to: '/admin/usuarios', label: 'Usuários' },
+  { to: '/admin/inscritos', label: 'Inscritos' },
   { to: '/admin/checkin', label: 'Check-in' },
   { to: '/admin/ranking', label: 'Ranking' },
 ];
