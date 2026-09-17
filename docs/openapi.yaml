@@ -775,7 +775,7 @@ paths:
       - name: codigo
         in: path
         required: true
-        description: Código impresso no certificado (ex.\: WCT-2026-A7F3K2)
+        description: 'Código impresso no certificado (ex.: WCT-2026-A7F3K2)'
         schema:
           type: string
     get:
@@ -817,7 +817,7 @@ paths:
                     format: date
                   carga_horaria:
                     type: string
-                    description: Ex.\: "2h" ou "2h30"
+                    description: 'Ex.: "2h" ou "2h30"'
                   emitido_em:
                     type: string
                     format: date-time
