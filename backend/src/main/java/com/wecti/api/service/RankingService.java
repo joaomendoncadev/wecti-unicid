@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * Classificacao dos alunos por pontos no WECTI.
  *
  * <p><b>Por que nao reutiliza PontuacaoService.</b> A regra e a mesma
- * (esta em {@link CalculoPontuacaoEvento}, usada pelos dois), mas o
+ * (esta em {@link RegraPontuacao}, usada pelos dois), mas o
  * acesso a dados nao pode ser: chamar o calculo individual para cada
  * aluno faria duas consultas por evento por aluno - com 400 alunos e 10
  * eventos, 8 mil consultas para montar uma tela. Aqui tudo do periodo e
@@ -52,15 +52,17 @@ public class RankingService {
     private final CheckinRepository checkinRepository;
     private final PontuacaoExtraService pontuacaoExtraService;
     private final UsuarioRepository usuarioRepository;
+    private final RegraPontuacao regraPontuacao;
 
     public RankingService(EventoRepository eventoRepository, InscricaoRepository inscricaoRepository,
                            CheckinRepository checkinRepository, PontuacaoExtraService pontuacaoExtraService,
-                           UsuarioRepository usuarioRepository) {
+                           UsuarioRepository usuarioRepository, RegraPontuacao regraPontuacao) {
         this.eventoRepository = eventoRepository;
         this.inscricaoRepository = inscricaoRepository;
         this.checkinRepository = checkinRepository;
         this.pontuacaoExtraService = pontuacaoExtraService;
         this.usuarioRepository = usuarioRepository;
+        this.regraPontuacao = regraPontuacao;
     }
 
     /**
@@ -79,7 +81,7 @@ public class RankingService {
 
         LocalDateTime agora = LocalDateTime.now();
         Map<UUID, Usuario> alunos = new HashMap<>();
-        Map<UUID, Integer> pontosEventos = new HashMap<>();
+        Map<UUID, RegraPontuacao.Totalizador> pontosEventos = new HashMap<>();
         Map<UUID, Integer> eventosConcluidos = new HashMap<>();
 
         for (Inscricao inscricao : inscricoes) {
@@ -89,16 +91,16 @@ public class RankingService {
             }
             Usuario aluno = inscricao.getAluno();
             alunos.putIfAbsent(aluno.getId(), aluno);
-            pontosEventos.putIfAbsent(aluno.getId(), 0);
+            pontosEventos.computeIfAbsent(aluno.getId(), id -> regraPontuacao.totalizador());
             eventosConcluidos.putIfAbsent(aluno.getId(), 0);
 
-            var resultado = CalculoPontuacaoEvento.avaliar(
+            var resultado = regraPontuacao.avaliar(
                     evento, inscricao, checkinsPorInscricao.get(inscricao.getId()), agora);
             if (resultado == null) {
                 continue;
             }
-            pontosEventos.merge(aluno.getId(), resultado.pontos(), Integer::sum);
-            if (CalculoPontuacaoEvento.CONCLUIDO.equals(resultado.status()) && resultado.pontos() > 0) {
+            pontosEventos.get(aluno.getId()).somar(resultado);
+            if (RegraPontuacao.CONCLUIDO.equals(resultado.status()) && resultado.pontos() > 0) {
                 eventosConcluidos.merge(aluno.getId(), 1, Integer::sum);
             }
         }
@@ -120,7 +122,9 @@ public class RankingService {
         List<Parcial> parciais = alunos.values().stream()
                 .map(aluno -> new Parcial(
                         aluno,
-                        pontosEventos.getOrDefault(aluno.getId(), 0),
+                        pontosEventos.containsKey(aluno.getId())
+                                ? pontosEventos.get(aluno.getId()).total()
+                                : 0,
                         extras.getOrDefault(aluno.getId(), 0),
                         eventosConcluidos.getOrDefault(aluno.getId(), 0)))
                 .sorted(Comparator.comparingInt(Parcial::total).reversed()

@@ -1,6 +1,7 @@
 package com.wecti.api.controller;
 
 import com.wecti.api.domain.Perfil;
+import com.wecti.api.dto.AtualizarPerfilRequest;
 import com.wecti.api.dto.NovoUsuarioRequest;
 import com.wecti.api.dto.PaginaResponse;
 import com.wecti.api.dto.UsuarioResponse;
@@ -62,5 +63,16 @@ public class UsuarioController {
     @GetMapping("/usuarios/me")
     public UsuarioResponse me(@AuthenticationPrincipal AuthenticatedUser autenticado) {
         return UsuarioResponse.de(usuarioService.buscarPorId(autenticado.id()));
+    }
+
+    /**
+     * A propria pessoa corrigindo o cadastro. O id vem do token, nunca
+     * do caminho ou do corpo - assim nao ha como editar o perfil de
+     * outra pessoa passando o id dela.
+     */
+    @PutMapping("/usuarios/me")
+    public UsuarioResponse atualizarMeuPerfil(@AuthenticationPrincipal AuthenticatedUser autenticado,
+                                               @Valid @RequestBody AtualizarPerfilRequest request) {
+        return UsuarioResponse.de(usuarioService.atualizarMeuPerfil(autenticado.id(), request));
     }
 }

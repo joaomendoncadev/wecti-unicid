@@ -23,6 +23,11 @@ interface AuthContextValue {
   entrar: (dados: LoginRequest) => Promise<Usuario>;
   registrar: (dados: CadastroAlunoRequest) => Promise<Usuario>;
   redefinirSenha: (dados: RedefinirSenhaRequest) => Promise<Usuario>;
+  /** Reflete no contexto um usuário que mudou por fora do login (hoje:
+   *  a própria pessoa corrigindo o cadastro em /perfil). Sem isto o
+   *  nome na navbar continuaria o antigo até o próximo login, já que
+   *  ele vem do objeto salvo no localStorage, não do token. */
+  atualizarUsuario: (usuario: Usuario) => void;
   sair: () => void;
 }
 
@@ -73,6 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // senha nova.
   const redefinirSenha = async (dados: RedefinirSenhaRequest) => persistirSessao(await redefinirSenhaRequest(dados));
 
+  const atualizarUsuario = (atualizado: Usuario) => {
+    localStorage.setItem(USUARIO_KEY, JSON.stringify(atualizado));
+    setUsuario(atualizado);
+  };
+
   const sair = () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USUARIO_KEY);
@@ -89,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     entrar,
     registrar,
     redefinirSenha,
+    atualizarUsuario,
     sair,
   };
 

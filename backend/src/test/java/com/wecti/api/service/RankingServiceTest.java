@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
@@ -33,21 +34,32 @@ import static org.mockito.Mockito.when;
  * Ranking do WECTI.
  *
  * <p>O ponto critico coberto aqui e a <b>concordancia com a tela
- * individual</b>: os dois usam {@link CalculoPontuacaoEvento}, e um aluno
+ * individual</b>: os dois usam {@link RegraPontuacao}, e um aluno
  * que visse um total no proprio perfil e outro no ranking perderia a
  * confianca na competicao inteira. Por isso os cenarios repetem as mesmas
  * situacoes de PontuacaoServiceTest (no-show, cancelado, evento em
- * andamento) e conferem o numero final.
+ * andamento, teto de pontos) e conferem o numero final.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RankingServiceTest {
+
+    /** Diferente da penalidade de proposito: com os dois em 100, o teste
+     *  de no-show passaria com a regra antiga (descontar os pontos do
+     *  evento) e com a nova (valor fixo), sem distinguir as duas. */
+    private static final int PONTOS_DO_EVENTO = 300;
+    private static final int PENALIDADE_NO_SHOW = 100;
+    private static final int LIMITE_EVENTOS = 500;
 
     @Mock private EventoRepository eventoRepository;
     @Mock private InscricaoRepository inscricaoRepository;
     @Mock private CheckinRepository checkinRepository;
     @Mock private PontuacaoExtraService pontuacaoExtraService;
     @Mock private UsuarioRepository usuarioRepository;
+
+    // Regra real (nao mock): o que este teste protege e justamente o
+    // ranking usar a MESMA conta da tela individual.
+    @Spy private RegraPontuacao regraPontuacao = new RegraPontuacao(PENALIDADE_NO_SHOW, LIMITE_EVENTOS);
 
     @InjectMocks private RankingService rankingService;
 
@@ -63,7 +75,7 @@ class RankingServiceTest {
                 .titulo("Palestra encerrada")
                 .dataHoraInicio(inicio)
                 .dataHoraFim(inicio.plusHours(2))
-                .pontos(100)
+                .pontos(PONTOS_DO_EVENTO)
                 .build();
 
         when(eventoRepository.findAll()).thenReturn(List.of(eventoEncerrado));
@@ -110,10 +122,10 @@ class RankingServiceTest {
 
         assertThat(ranking.itens()).extracting(RankingItemResponse::alunoNome)
                 .containsExactly(comPresenca.getNome(), faltou.getNome());
-        assertThat(ranking.itens().get(0).pontosTotal()).isEqualTo(100);
+        assertThat(ranking.itens().get(0).pontosTotal()).isEqualTo(PONTOS_DO_EVENTO);
         assertThat(ranking.itens().get(1).pontosTotal())
-                .as("nao cancelou e nao compareceu = no-show, perde os pontos do evento")
-                .isEqualTo(-100);
+                .as("nao cancelou e nao compareceu = no-show, e a penalidade e fixa")
+                .isEqualTo(-PENALIDADE_NO_SHOW);
     }
 
     @Test
@@ -139,9 +151,9 @@ class RankingServiceTest {
 
         var item = rankingService.montar(false).itens().get(0);
 
-        assertThat(item.pontosEventos()).isEqualTo(100);
+        assertThat(item.pontosEventos()).isEqualTo(PONTOS_DO_EVENTO);
         assertThat(item.pontosExtras()).isEqualTo(50);
-        assertThat(item.pontosTotal()).isEqualTo(150);
+        assertThat(item.pontosTotal()).isEqualTo(PONTOS_DO_EVENTO + 50);
     }
 
     @Test
@@ -182,7 +194,9 @@ class RankingServiceTest {
 
         assertThat(rankingService.montar(true).itens().get(0).alunoRgm()).isEqualTo("12345678");
         assertThat(rankingService.montar(false).itens().get(0).alunoRgm())
-                .as("o ranking do aluno e aberto para a turma inteira - nao espalha o RGM dos colegas")
+                .as("hoje so o admin chega ao ranking (SecurityConfig), mas a versao "
+                        + "sem RGM segue coberta: essa decisao ja mudou uma vez e, se "
+                        + "o ranking voltar para o aluno, o RGM dos colegas nao pode ir junto")
                 .isNull();
     }
 
@@ -194,7 +208,7 @@ class RankingServiceTest {
                 .titulo("Acontecendo agora")
                 .dataHoraInicio(LocalDateTime.now().minusMinutes(30))
                 .dataHoraFim(LocalDateTime.now().plusHours(1))
-                .pontos(100)
+                .pontos(PONTOS_DO_EVENTO)
                 .build();
         when(eventoRepository.findAll()).thenReturn(List.of(emAndamento));
 
@@ -248,5 +262,40 @@ class RankingServiceTest {
         inscrever(aluno, InscricaoStatus.CANCELADA);
 
         assertThat(rankingService.montar(false).itens().get(0).pontosTotal()).isZero();
+    }
+
+    @Test
+    @DisplayName("o teto de pontos vale no ranking igual a tela individual")
+    void tetoValeNoRanking() {
+        Usuario aluno = aluno("Ana", "11111111");
+        List<Evento> eventos = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {                       // 3 x 300 = 900
+            LocalDateTime inicio = LocalDateTime.now().minusDays(2 + i);
+            Evento evento = Evento.builder()
+                    .id(UUID.randomUUID()).titulo("Palestra " + i)
+                    .dataHoraInicio(inicio).dataHoraFim(inicio.plusHours(2))
+                    .pontos(PONTOS_DO_EVENTO).build();
+            eventos.add(evento);
+            Inscricao inscricao = Inscricao.builder()
+                    .id(UUID.randomUUID()).aluno(aluno).evento(evento)
+                    .status(InscricaoStatus.ATIVA).build();
+            inscricoes.add(inscricao);
+            checkins.add(Checkin.builder()
+                    .inscricao(inscricao)
+                    .entrada(evento.getDataHoraInicio())
+                    .saida(evento.getDataHoraFim())
+                    .build());
+        }
+        when(eventoRepository.findAll()).thenReturn(eventos);
+
+        var item = rankingService.montar(false).itens().get(0);
+
+        assertThat(item.pontosEventos())
+                .as("um total aqui diferente do que o aluno ve no proprio perfil "
+                        + "derruba a confianca na competicao inteira")
+                .isEqualTo(LIMITE_EVENTOS);
+        assertThat(item.eventosConcluidos())
+                .as("o teto corta pontos, nao a contagem de palestras assistidas")
+                .isEqualTo(3);
     }
 }

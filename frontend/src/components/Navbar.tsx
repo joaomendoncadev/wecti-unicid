@@ -9,13 +9,16 @@ interface ItemMenu {
   label: string;
 }
 
+// Sem Ranking: o professor pediu em setembro de 2026 para o aluno não
+// ver mais a classificação da turma, só a própria pontuação. Quem barra
+// de verdade é o backend (GET /ranking exige ADMIN) - tirar o link daqui
+// é só para a tela não oferecer o que vai dar 403.
 const MENU_ALUNO: ItemMenu[] = [
   { to: '/eventos', label: 'Eventos' },
   { to: '/minhas-inscricoes', label: 'Minhas inscrições' },
   { to: '/historico', label: 'Histórico' },
   { to: '/certificados', label: 'Certificados' },
   { to: '/pontuacao', label: 'Pontuação' },
-  { to: '/ranking', label: 'Ranking' },
 ];
 
 const MENU_ADMIN: ItemMenu[] = [

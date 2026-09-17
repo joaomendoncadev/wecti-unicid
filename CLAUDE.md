@@ -78,8 +78,35 @@ confirmar de novo.
   (`Evento.pontos`), definido no cadastro do evento. Só conta para o
   aluno quando ele cumpre o mesmo critério do certificado - não basta o
   check-in.
-- **Penalidade**: o no-show desconta exatamente os pontos que aquele
-  evento valeria.
+- **Penalidade**: o no-show desconta um valor **fixo**, configurável em
+  `app.pontuacao.penalidade-no-show` (padrão **100**) - e não os pontos
+  que aquele evento valeria.
+
+  > Era assim até setembro de 2026: faltar numa palestra de 50 pontos
+  > custava 50, e numa de 300 custava 300. Quem pegava vaga na palestra
+  > mais concorrida e não aparecia era quem mais perdia, embora o
+  > desperdício (uma vaga vazia) seja o mesmo nos dois casos.
+- **Teto de pontos de evento**: o aluno ganha no máximo
+  `app.pontuacao.limite-eventos` (padrão **2000**) em palestras.
+
+  O teto apara **apenas os ganhos**; a penalidade de no-show é descontada
+  **depois** dele. Nessa ordem, quem já passou do teto continua sentindo a
+  falta - se o teto fosse aplicado sobre o saldo, a penalidade sumiria
+  junto com o excedente. Exemplo: 2300 ganhos + 1 falta →
+  `min(2300, 2000) - 100 = 1900`.
+
+  **Gincana fica fora do teto** (é premiação lançada à mão pelo admin,
+  não pontuação de palestra). A conta inteira vive em `RegraPontuacao`,
+  usada pela tela individual e pelo ranking - um número diferente nos dois
+  lugares derrubaria a confiança na competição.
+- **Ranking: só admin.** O aluno vê a própria pontuação (`/me/pontuacao`),
+  não a classificação da turma. `GET /ranking` exige ADMIN no
+  `SecurityConfig` - a restrição é do backend, não só do menu.
+- **O aluno corrige o próprio cadastro** em `PUT /usuarios/me`: nome, RGM
+  e curso. **Não** mexe em e-mail (é o login - errar ali tiraria o acesso
+  da própria pessoa), perfil (seria escalada de privilégio) nem senha
+  (essa vai por `/auth/redefinir-senha`). O id vem do token, nunca do
+  corpo.
 - **Não existe recorte por semestre.** A pontuação é simplesmente a do
   aluno no WECTI, somando todas as palestras mais os pontos de gincana.
   Não há reinício por período.

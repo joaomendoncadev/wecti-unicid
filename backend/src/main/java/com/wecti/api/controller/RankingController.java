@@ -1,22 +1,22 @@
 package com.wecti.api.controller;
 
-import com.wecti.api.domain.Perfil;
 import com.wecti.api.dto.RankingResponse;
-import com.wecti.api.security.AuthenticatedUser;
 import com.wecti.api.service.RankingService;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Classificação por pontos. Uma rota só para os dois perfis: a
- * diferença é o que volta em cada uma.
+ * Classificação por pontos — tela do admin.
  *
- * <p>O RGM só é incluído para o admin, que precisa dele para não lançar
- * pontos no aluno errado. Para o aluno, o ranking mostra nome e curso —
- * o suficiente para acompanhar a disputa, sem espalhar o identificador
- * acadêmico dos colegas por uma tela que a turma inteira abre. Quem
- * decide isso é o perfil do token, nunca um parâmetro da requisição.
+ * <p>Até setembro de 2026 o aluno também via esta rota, com uma versão
+ * reduzida (sem o RGM dos colegas). O professor pediu para tirar: o
+ * aluno acompanha a própria pontuação em {@code /me/pontuacao} e não a
+ * dos outros. Quem barra é o {@code SecurityConfig}, não o menu do
+ * frontend — esconder o link não impediria ninguém de chamar a API.
+ *
+ * <p>Como só o admin chega aqui, o RGM vai sempre incluído: ele precisa
+ * do identificador para não lançar pontos de gincana no aluno errado
+ * (homônimos existem).
  */
 @RestController
 public class RankingController {
@@ -28,7 +28,7 @@ public class RankingController {
     }
 
     @GetMapping("/ranking")
-    public RankingResponse ranking(@AuthenticationPrincipal AuthenticatedUser autenticado) {
-        return rankingService.montar(autenticado.perfil() == Perfil.ADMIN);
+    public RankingResponse ranking() {
+        return rankingService.montar(true);
     }
 }

@@ -1,5 +1,5 @@
 import api from './api';
-import type { Pagina, NovoUsuario, Perfil, Usuario } from '../types';
+import type { AtualizarPerfil, Pagina, NovoUsuario, Perfil, Usuario } from '../types';
 
 export interface FiltroUsuarios {
   perfil?: Perfil;
@@ -26,4 +26,10 @@ export function excluirUsuario(id: string) {
 
 export function buscarMeuUsuario() {
   return api.get<Usuario>('/usuarios/me').then((res) => res.data);
+}
+
+/** A própria pessoa corrigindo o cadastro. Não leva id: o backend usa o
+ *  do token, então não há como editar o perfil de outra pessoa. */
+export function atualizarMeuPerfil(dados: AtualizarPerfil) {
+  return api.put<Usuario>('/usuarios/me', dados).then((res) => res.data);
 }

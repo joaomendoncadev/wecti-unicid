@@ -69,6 +69,20 @@ app:
     tolerancia-antes-minutos: ${CHECKIN_TOLERANCIA_ANTES_MINUTOS:30}
     # Depois: tempo pra quem esta saindo fazer o check-out na porta.
     tolerancia-depois-minutos: ${CHECKIN_TOLERANCIA_DEPOIS_MINUTOS:30}
+  pontuacao:
+    # Quanto custa reservar vaga e nao aparecer (no-show). Valor fixo, e
+    # nao os pontos daquela palestra: antes, faltar numa palestra de 50
+    # pontos custava 50 e faltar numa de 300 custava 300 - quem pegava
+    # vaga na palestra mais concorrida e nao ia era quem mais perdia,
+    # quando o problema (vaga desperdicada) e o mesmo nos dois casos.
+    penalidade-no-show: ${PONTUACAO_PENALIDADE_NO_SHOW:100}
+    # Teto de pontos que da para GANHAR em palestras. O teto apara so os
+    # ganhos; a penalidade de no-show e descontada depois dele, senao
+    # quem ja estivesse acima do teto faltaria de graca.
+    #
+    # Gincana (pontuacao-extra, lancada a mao pelo admin) fica de fora
+    # deste teto - e premiacao, nao pontuacao de palestra.
+    limite-eventos: ${PONTUACAO_LIMITE_EVENTOS:2000}
   rate-limit:
     # Trava forca bruta nas rotas de autenticacao
     # (ver RateLimitAutenticacaoFilter). Conta apenas tentativas que

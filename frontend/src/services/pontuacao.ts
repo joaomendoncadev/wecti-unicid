@@ -9,9 +9,9 @@ export function buscarPontuacaoDoAluno(alunoId: string) {
   return api.get<Pontuacao>(`/pontuacao/aluno/${alunoId}`).then((res) => res.data);
 }
 
-/** Classificação por pontos. Uma rota só para os dois perfis - o backend
- *  decide o que devolver pelo perfil do token (o RGM dos colegas só vai
- *  para o admin). */
+/** Classificação por pontos - tela do admin. O aluno não vê mais o
+ *  ranking da turma (só a própria pontuação), e o backend recusa a
+ *  chamada dele com 403. */
 export function buscarRanking() {
   return api.get<Ranking>('/ranking').then((res) => res.data);
 }

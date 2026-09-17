@@ -29,6 +29,22 @@ export default function PontuacaoPage() {
             )}
           </div>
 
+          {/* Só aparece para quem realmente bateu no teto. Sem este aviso,
+              esse aluno soma a tabela abaixo à mão, dá diferente do total
+              lá em cima e conclui que o sistema errou a conta dele. */}
+          {pontuacao.pontos_eventos_excedente > 0 && (
+            <div className="rounded-card border border-amber-500/30 bg-amber-500/5 px-5 py-4">
+              <p className="text-sm text-amber-300">
+                Você atingiu o limite de {pontuacao.limite_eventos} pontos em palestras.
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Os {pontuacao.pontos_eventos_excedente} pontos acima do limite não entram no total.
+                A tabela abaixo mostra o valor cheio de cada palestra. Pontos de gincana são contados
+                à parte e não têm esse limite.
+              </p>
+            </div>
+          )}
+
           {pontuacao.eventos.length === 0 ? (
             <EmptyState titulo="Nenhum evento pontuado ainda" icone="⭐" />
           ) : (

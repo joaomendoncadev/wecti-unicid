@@ -24,9 +24,11 @@ import java.util.UUID;
  * a penalizacao no log no momento em que o evento termina.
  *
  * <p>O total soma duas parcelas: os eventos (regra em
- * {@link CalculoPontuacaoEvento}) e os pontos extras lancados pelo admin
+ * {@link RegraPontuacao}) e os pontos extras lancados pelo admin
  * ({@link PontuacaoExtraService}). As duas aparecem separadas na resposta
- * porque o aluno precisa conseguir explicar o proprio numero.
+ * porque o aluno precisa conseguir explicar o proprio numero - e, quando
+ * o teto de pontos de evento corta alguma coisa, o quanto foi cortado
+ * tambem vai na resposta, pelo mesmo motivo.
  *
  * <p><b>Sem recorte por semestre.</b> A pontuacao e do aluno no WECTI,
  * ponto. O conceito de "periodo" foi removido: nunca foi validado com o
@@ -42,20 +44,23 @@ public class PontuacaoService {
     private final InscricaoRepository inscricaoRepository;
     private final CheckinRepository checkinRepository;
     private final PontuacaoExtraService pontuacaoExtraService;
+    private final RegraPontuacao regraPontuacao;
 
     public PontuacaoService(EventoRepository eventoRepository, InscricaoRepository inscricaoRepository,
-                             CheckinRepository checkinRepository, PontuacaoExtraService pontuacaoExtraService) {
+                             CheckinRepository checkinRepository, PontuacaoExtraService pontuacaoExtraService,
+                             RegraPontuacao regraPontuacao) {
         this.eventoRepository = eventoRepository;
         this.inscricaoRepository = inscricaoRepository;
         this.checkinRepository = checkinRepository;
         this.pontuacaoExtraService = pontuacaoExtraService;
+        this.regraPontuacao = regraPontuacao;
     }
 
     public PontuacaoResponse calcular(UUID alunoId) {
         List<Evento> eventos = eventoRepository.findAll();
         List<EventoPontuacaoItemResponse> itens = new ArrayList<>();
         LocalDateTime agora = LocalDateTime.now();
-        int pontosEventos = 0;
+        var totalizador = regraPontuacao.totalizador();
 
         for (Evento evento : eventos) {
             var inscricaoOpt = inscricaoRepository.findByAlunoIdAndEventoId(alunoId, evento.getId());
@@ -65,14 +70,19 @@ public class PontuacaoService {
             Inscricao inscricao = inscricaoOpt.get();
             var checkin = checkinRepository.findByInscricaoId(inscricao.getId()).orElse(null);
 
-            var resultado = CalculoPontuacaoEvento.avaliar(evento, inscricao, checkin, agora);
+            var resultado = regraPontuacao.avaliar(evento, inscricao, checkin, agora);
             if (resultado == null) {
                 continue;
             }
+            // O item guarda o que aquele evento valeu, sem o teto: o teto
+            // e do conjunto, nao de uma palestra. O corte aparece uma vez
+            // so, em pontosEventosExcedente.
             itens.add(new EventoPontuacaoItemResponse(evento.getId(), evento.getTitulo(),
                     resultado.pontos(), resultado.status()));
-            pontosEventos += resultado.pontos();
+            totalizador.somar(resultado);
         }
+
+        int pontosEventos = totalizador.total();
 
         List<PontuacaoExtra> extras = pontuacaoExtraService.listar(alunoId);
         int pontosExtras = extras.stream().mapToInt(PontuacaoExtra::getPontos).sum();
@@ -81,6 +91,8 @@ public class PontuacaoService {
                 pontosEventos + pontosExtras,
                 pontosEventos,
                 pontosExtras,
+                regraPontuacao.limiteEventos(),
+                totalizador.excedente(),
                 itens,
                 extras.stream().map(PontuacaoExtraResponse::de).toList());
     }

@@ -9,6 +9,7 @@ import com.wecti.api.exception.RegraNegocioException;
 import com.wecti.api.repository.EventoRepository;
 import com.wecti.api.repository.InscricaoRepository;
 import com.wecti.api.repository.PalestranteRepository;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -44,8 +45,18 @@ public class EventoService {
                 prazoInscricao.estaAberto(evento), prazoInscricao.fechamento(evento));
     }
 
+    /**
+     * Sempre em ordem cronologica crescente - a proxima palestra primeiro.
+     * Antes saia na ordem que o banco devolvia (sem ORDER BY, ou seja,
+     * ordem nenhuma garantida), e a grade da semana aparecia embaralhada
+     * na tela do aluno.
+     *
+     * <p>A ordenacao fica aqui, e nao em cada tela: as duas listagens
+     * (aluno e admin) leem desta mesma rota, e ordenar no cliente daria
+     * o trabalho em dobro para chegar no mesmo lugar.
+     */
     public List<Evento> listar(String status) {
-        List<Evento> eventos = eventoRepository.findAll();
+        List<Evento> eventos = eventoRepository.findAll(Sort.by(Sort.Direction.ASC, "dataHoraInicio"));
 
         if ("futuros".equals(status)) {
             return eventos.stream().filter(prazoInscricao::estaAberto).toList();
@@ -56,7 +67,8 @@ public class EventoService {
         // "em_cartaz": tudo que ainda nao terminou - o que o aluno ve na
         // tela de Eventos. Inclui o que esta acontecendo agora: sumir da
         // lista na hora exata em que a palestra comeca faz o aluno achar
-        // que o evento foi cancelado.
+        // que o evento foi cancelado. Depois de terminar, o evento sai
+        // daqui e so aparece no filtro "encerrados".
         if ("em_cartaz".equals(status)) {
             return eventos.stream().filter(e -> !e.isEncerrado()).toList();
         }

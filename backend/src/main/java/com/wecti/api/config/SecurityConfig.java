@@ -111,11 +111,17 @@ public class SecurityConfig {
                         // entao so admin - o aluno nao ve a turma.
                         .requestMatchers(HttpMethod.GET, "/eventos/*/inscritos").hasRole("ADMIN")
 
+                        // "/usuarios/me" PRECISA vir antes de "/usuarios/*":
+                        // o matcher e avaliado em ordem, e o coringa tambem
+                        // casa com "me" - invertido, a propria pessoa levaria
+                        // 403 ao corrigir o cadastro dela.
+                        .requestMatchers(HttpMethod.GET, "/usuarios/me").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/usuarios/me").authenticated()
+
                         .requestMatchers(HttpMethod.GET, "/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/usuarios/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/usuarios/*").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/usuarios/me").authenticated()
 
                         .requestMatchers(HttpMethod.POST, "/palestrantes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/palestrantes").authenticated()
@@ -129,10 +135,14 @@ public class SecurityConfig {
                         .requestMatchers("/me/pontuacao").hasRole("ALUNO")
                         .requestMatchers("/pontuacao/aluno/*").hasRole("ADMIN")
 
-                        // Ranking: os dois perfis veem, mas o conteudo muda -
-                        // o RGM dos colegas so vai para o admin. Quem decide e
-                        // o perfil do token, dentro do RankingController.
-                        .requestMatchers(HttpMethod.GET, "/ranking").authenticated()
+                        // Ranking: so o admin. O aluno via a classificacao da
+                        // turma inteira ate setembro de 2026, quando o
+                        // professor pediu para tirar - o aluno continua vendo
+                        // a propria pontuacao em /me/pontuacao, mas nao a dos
+                        // colegas. A restricao fica aqui, e nao so no menu do
+                        // frontend: esconder o link nao impede ninguem de
+                        // chamar a API direto.
+                        .requestMatchers(HttpMethod.GET, "/ranking").hasRole("ADMIN")
                         // Lancamento manual de pontos (gincana) - so admin.
                         .requestMatchers("/pontuacao-extra", "/pontuacao-extra/*").hasRole("ADMIN")
 

@@ -183,8 +183,16 @@ export interface PontuacaoExtra {
 export interface Pontuacao {
   /** O que vale no ranking: eventos + extras. */
   pontos_total: number;
+  /** Já com o teto aplicado e as faltas descontadas. */
   pontos_eventos: number;
+  /** Gincana — fica fora do teto de eventos. */
   pontos_extras: number;
+  /** Teto de pontos que dá para ganhar em palestras. */
+  limite_eventos: number;
+  /** Quanto dos ganhos o teto cortou; 0 na maioria dos casos. Vem da API
+   *  porque sem ele o aluno soma a lista de eventos à mão, dá diferente
+   *  de `pontos_eventos` e acha que o sistema errou. */
+  pontos_eventos_excedente: number;
   eventos: EventoPontuacaoItem[];
   extras: PontuacaoExtra[];
 }
@@ -225,6 +233,16 @@ export interface CadastroAlunoRequest {
   email: string;
   senha: string;
   rgm: string;
+  curso?: string;
+}
+
+/** O que a própria pessoa pode corrigir no cadastro (PUT /usuarios/me).
+ *  Sem e-mail (é o login), sem perfil (seria escalada de privilégio) e
+ *  sem senha (essa vai pelo "Esqueci minha senha") — ver
+ *  AtualizarPerfilRequest no backend. */
+export interface AtualizarPerfil {
+  nome: string;
+  rgm?: string;
   curso?: string;
 }
 

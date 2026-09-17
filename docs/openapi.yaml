@@ -323,6 +323,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/Usuario'
 
+    put:
+      tags: [Usuarios]
+      summary: A própria pessoa corrige o próprio cadastro
+      description: >
+        Existe porque muito aluno errou nome, RGM ou curso no
+        autocadastro e só o admin conseguia arrumar, um a um.
+
+
+        O id vem do token, nunca do caminho ou do corpo - não há como
+        editar o cadastro de outra pessoa. E-mail, perfil, CPF e senha
+        NÃO entram aqui: o e-mail é o login (quem digitasse errado ao
+        "corrigir" perderia o acesso), o perfil vindo do cliente seria
+        escalada de privilégio, e a senha continua pelo fluxo de
+        /auth/redefinir-senha. Para admin, rgm e curso são ignorados -
+        são campos de aluno.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AtualizarPerfil'
+      responses:
+        '200':
+          description: Cadastro atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          description: Nome vazio, ou RGM ausente/fora do formato para aluno
+        '409':
+          description: RGM já usado por outro usuário
+
   # ---------------------------------------------------------------------
   # Palestrantes
   # ---------------------------------------------------------------------
@@ -934,13 +967,12 @@ paths:
   /ranking:
     get:
       tags: [Pontuacao]
-      summary: Classificação dos alunos por pontos no período
+      summary: Classificação dos alunos por pontos (somente admin)
       description: >
-        Uma rota só para os dois perfis - a diferença está no que volta.
-        O RGM dos alunos só é incluído quando quem chama é ADMIN (que
-        precisa dele para não lançar pontos no aluno errado); para o
-        ALUNO vem nome e curso, e mais nada. Quem decide isso é o perfil
-        do token, nunca um parâmetro da requisição.
+        Somente ADMIN. Até setembro de 2026 o aluno também via esta rota,
+        numa versão sem o RGM dos colegas; o professor pediu para tirar -
+        o aluno acompanha a própria pontuação em /me/pontuacao e não a
+        dos outros.
 
 
         Alunos empatados dividem a mesma posição, e a posição seguinte
@@ -948,13 +980,13 @@ paths:
         inscrição, mais os que receberam pontos extras.
       responses:
         '200':
-          description: Classificação do período
+          description: Classificação
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ranking'
-        '404':
-          description: Nenhum período ativo no momento
+        '403':
+          description: Perfil sem permissão (aluno)
 
   /pontuacao-extra:
     post:
@@ -1112,6 +1144,30 @@ components:
           description: >
             Obrigatório quando perfil = admin, pela mesma razão do rgm
             acima - validado no backend.
+        curso:
+          type: string
+          nullable: true
+          description: Opcional, só informativo (ver descrição em Usuario.curso).
+
+    AtualizarPerfil:
+      type: object
+      required: [nome]
+      description: >
+        Corpo de PUT /usuarios/me - o que a própria pessoa pode corrigir
+        sozinha. Bem menor que NovoUsuario (a tela do admin) de propósito:
+        e-mail, perfil, CPF e senha ficam de fora. Ver a descrição do
+        endpoint para o motivo de cada ausência.
+      properties:
+        nome:
+          type: string
+        rgm:
+          type: string
+          pattern: '^\d{8}$'
+          nullable: true
+          description: >
+            Obrigatório para aluno; ignorado para admin (é campo de
+            aluno). Mesma limitação do OpenAPI descrita em
+            NovoUsuario.rgm - a regra é validada no backend.
         curso:
           type: string
           nullable: true
@@ -1448,12 +1504,33 @@ components:
         pontos_eventos:
           type: integer
           description: >
-            Soma dos pontos dos eventos com status "concluido", já
-            descontados os pontos perdidos nos eventos com status
-            "no_show" (mesmo valor de pontos do evento perdido).
+            Soma dos pontos dos eventos com status "concluido", limitada
+            a limite_eventos, MENOS a penalidade de cada evento com
+            status "no_show".
+
+
+            O teto apara só os ganhos; a penalidade é descontada depois
+            dele. Sem essa ordem, quem já estivesse acima do teto faltaria
+            de graça - a falta sumiria ao aparar o excedente.
         pontos_extras:
           type: integer
-          description: Soma dos lancamentos manuais do admin (gincanas).
+          description: >
+            Soma dos lancamentos manuais do admin (gincanas). Fica FORA do
+            teto de limite_eventos - é premiação, não pontuação de
+            palestra.
+        limite_eventos:
+          type: integer
+          description: >
+            Teto de pontos que dá para ganhar em palestras
+            (app.pontuacao.limite-eventos, padrão 2000).
+          example: 2000
+        pontos_eventos_excedente:
+          type: integer
+          description: >
+            Quanto dos ganhos o teto cortou; 0 na maioria dos casos. Vai
+            na resposta porque, sem ele, o aluno soma a lista de eventos à
+            mão, dá diferente de pontos_eventos e acha que houve erro.
+          example: 0
         extras:
           type: array
           description: >

@@ -2,6 +2,7 @@ package com.wecti.api.service;
 
 import com.wecti.api.domain.Perfil;
 import com.wecti.api.domain.Usuario;
+import com.wecti.api.dto.AtualizarPerfilRequest;
 import com.wecti.api.dto.CadastroAlunoRequest;
 import com.wecti.api.dto.NovoUsuarioRequest;
 import com.wecti.api.dto.RedefinirSenhaRequest;
@@ -97,6 +98,37 @@ public class UsuarioService {
         usuario.setRgm(request.perfil() == Perfil.ALUNO ? request.rgm() : null);
         usuario.setCpf(request.perfil() == Perfil.ADMIN ? request.cpf() : null);
         usuario.setCurso(request.perfil() == Perfil.ALUNO ? request.curso() : null);
+
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * A propria pessoa corrigindo o cadastro (PUT /usuarios/me). Nasceu
+     * de um problema real: muito aluno errou nome, RGM ou curso no
+     * autocadastro e nao tinha como arrumar - sobrava para o admin, um a
+     * um.
+     *
+     * <p>Mexe so no que {@link AtualizarPerfilRequest} carrega. Email,
+     * perfil, CPF e senha ficam de fora - ver o javadoc do DTO para o
+     * motivo de cada um. Em especial, <b>o perfil nunca e tocado aqui</b>:
+     * e o que impede um aluno de virar admin mandando JSON.
+     *
+     * <p>Para ADMIN, rgm e curso sao ignorados (sao campos de aluno), e
+     * so o nome muda - mesma logica de {@link #criar}.
+     */
+    public Usuario atualizarMeuPerfil(UUID id, AtualizarPerfilRequest request) {
+        Usuario usuario = buscarPorId(id);
+
+        usuario.setNome(request.nome());
+
+        if (usuario.getPerfil() == Perfil.ALUNO) {
+            if (request.rgm() == null || request.rgm().isBlank()) {
+                throw new CampoInvalidoException("rgm", "RGM e obrigatorio para usuarios com perfil ALUNO");
+            }
+            validarRgmUnico(request.rgm(), id);
+            usuario.setRgm(request.rgm());
+            usuario.setCurso(request.curso());
+        }
 
         return usuarioRepository.save(usuario);
     }

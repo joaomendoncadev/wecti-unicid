@@ -31,12 +31,14 @@ public class NoShowSchedulerJob {
     private final EventoRepository eventoRepository;
     private final InscricaoRepository inscricaoRepository;
     private final CheckinRepository checkinRepository;
+    private final RegraPontuacao regraPontuacao;
 
     public NoShowSchedulerJob(EventoRepository eventoRepository, InscricaoRepository inscricaoRepository,
-                               CheckinRepository checkinRepository) {
+                               CheckinRepository checkinRepository, RegraPontuacao regraPontuacao) {
         this.eventoRepository = eventoRepository;
         this.inscricaoRepository = inscricaoRepository;
         this.checkinRepository = checkinRepository;
+        this.regraPontuacao = regraPontuacao;
     }
 
     @Scheduled(fixedRateString = "${wecti.no-show-job.fixed-rate-ms:900000}")
@@ -57,7 +59,8 @@ public class NoShowSchedulerJob {
                     continue;
                 }
                 log.warn("No-show: aluno {} perdeu {} pontos no evento '{}' ({})",
-                        inscricao.getAluno().getEmail(), evento.getPontos(), evento.getTitulo(), evento.getId());
+                        inscricao.getAluno().getEmail(), regraPontuacao.penalidadeNoShow(),
+                        evento.getTitulo(), evento.getId());
             }
         }
     }

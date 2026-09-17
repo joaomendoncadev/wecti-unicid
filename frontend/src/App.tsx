@@ -13,7 +13,6 @@ import MinhasInscricoesPage from './pages/aluno/MinhasInscricoesPage';
 import HistoricoPage from './pages/aluno/HistoricoPage';
 import CertificadosPage from './pages/aluno/CertificadosPage';
 import PontuacaoPage from './pages/aluno/PontuacaoPage';
-import RankingPage from './pages/aluno/RankingPage';
 import PerfilPage from './pages/aluno/PerfilPage';
 import CheckinConfirmarPage from './pages/aluno/CheckinConfirmarPage';
 import AdminEventosPage from './pages/admin/AdminEventosPage';
@@ -89,14 +88,6 @@ function AppRoutes() {
         element={
           <RotaPrivada perfis={['ALUNO']}>
             <PontuacaoPage />
-          </RotaPrivada>
-        }
-      />
-      <Route
-        path="/ranking"
-        element={
-          <RotaPrivada perfis={['ALUNO']}>
-            <RankingPage />
           </RotaPrivada>
         }
       />
