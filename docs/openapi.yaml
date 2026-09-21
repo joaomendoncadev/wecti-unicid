@@ -8,6 +8,8 @@
 #   - Penalizacao (no-show) se o aluno NAO cancelou E NAO fez check-in.
 #   - Certificado exige check-in + check-out + permanencia >= 75% da duracao
 #     do evento (calculada a partir de data_hora_inicio/data_hora_fim).
+#     So conta o tempo DENTRO do horario do evento: o check-in abre 1h
+#     antes e fecha 30min depois, e essa folga nao e presenca.
 #   - Pontos do evento sao definidos no proprio cadastro do evento.
 #   - Nao ha recorte por semestre: a pontuacao e a do aluno no WECTI,
 #     somando todas as palestras mais os pontos de gincana. A entidade
@@ -21,8 +23,13 @@
 #     presenca escaneando com a camera do celular (Android ou iOS).
 #   - Pontos do evento so contam para o aluno quando os criterios do
 #     certificado sao cumpridos (check-in + check-out + permanencia >= 75%).
-#   - Penalidade de no-show: o aluno perde exatamente os pontos que aquele
-#     evento valeria (mesmo valor do campo "pontos" do evento).
+#   - Penalidade de no-show: valor FIXO (app.pontuacao.penalidade-no-show,
+#     padrao 100), e nao os pontos daquele evento.
+#   - Teto de pontos ganhos em palestras (app.pontuacao.limite-eventos,
+#     padrao 2000). O teto apara so os ganhos; a penalidade de no-show e
+#     descontada DEPOIS dele. Gincana fica fora do teto.
+#   - Ranking: so ADMIN. O aluno ve a propria pontuacao em /me/pontuacao,
+#     nao a classificacao da turma.
 #   - Cadastro de aluno exige RGM (Registro Geral do Aluno) - identificador
 #     academico da faculdade, numero de 8 digitos, unico por aluno.
 # =============================================================================
@@ -286,7 +293,22 @@ paths:
           format: uuid
     put:
       tags: [Usuarios]
-      summary: Atualiza um usuário (admin)
+      summary: Atualiza qualquer cadastro (somente admin)
+      description: >
+        A tela de Usuários do admin. Mexe em tudo, inclusive e-mail e
+        perfil - campos que o próprio dono não altera sozinho (para isso
+        existe PUT /usuarios/me).
+
+
+        Uma trava: o admin NÃO pode rebaixar a si mesmo para ALUNO. Só
+        admin cria admin, então ele ficaria sem quem o promovesse de
+        volta e o sistema poderia acabar sem administrador nenhum.
+        Rebaixar OUTRO admin é permitido - sempre sobra pelo menos ele.
+
+
+        Campos que não se aplicam ao perfil escolhido devem ser omitidos,
+        e não enviados vazios: o pattern valida toda string presente,
+        então `""` é recusado.
       requestBody:
         required: true
         content:
@@ -301,15 +323,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/Usuario'
         '409':
-          description: Email ou RGM já usado por outro usuário
+          description: Email, RGM ou CPF já usado por outro usuário
+        '422':
+          description: O admin tentou remover o próprio acesso de administrador
     delete:
       tags: [Usuarios]
       summary: Exclui um usuário (somente admin)
+      description: >
+        O admin não pode excluir a própria conta - mesma razão da trava
+        em PUT: deixaria o sistema potencialmente sem administrador, sem
+        como desfazer pela aplicação.
       responses:
         '204':
           description: Usuário excluído
         '422':
-          description: Usuário possui inscrições e não pode ser excluído
+          description: >
+            Usuário possui inscrições, ou o admin tentou excluir a
+            própria conta
 
   /usuarios/me:
     get:
@@ -328,16 +358,20 @@ paths:
       summary: A própria pessoa corrige o próprio cadastro
       description: >
         Existe porque muito aluno errou nome, RGM ou curso no
-        autocadastro e só o admin conseguia arrumar, um a um.
+        autocadastro e só o admin conseguia arrumar, um a um. Vale para
+        os dois perfis - o admin usa a mesma rota para os dados dele.
+
+
+        Cada perfil mexe no que é seu: ALUNO em rgm e curso, ADMIN em
+        cpf. O campo do outro perfil vem no corpo mas é ignorado.
 
 
         O id vem do token, nunca do caminho ou do corpo - não há como
-        editar o cadastro de outra pessoa. E-mail, perfil, CPF e senha
-        NÃO entram aqui: o e-mail é o login (quem digitasse errado ao
+        editar o cadastro de outra pessoa. E-mail, perfil e senha NÃO
+        entram aqui: o e-mail é o login (quem digitasse errado ao
         "corrigir" perderia o acesso), o perfil vindo do cliente seria
         escalada de privilégio, e a senha continua pelo fluxo de
-        /auth/redefinir-senha. Para admin, rgm e curso são ignorados -
-        são campos de aluno.
+        /auth/redefinir-senha.
       requestBody:
         required: true
         content:
@@ -852,6 +886,11 @@ paths:
         Só libera o PDF se a inscrição tiver check-in, check-out e
         permanência de pelo menos 75% da duração do evento.
 
+
+        A permanência é a interseção entre [entrada, saída] e o horário
+        do evento: o tempo de folga do check-in (1h antes, 30min depois)
+        não conta como presença.
+
         O PDF traz nome do aluno, RGM, carga horária (calculada da
         duração do evento), data de realização e o título do evento,
         mais o bloco de validação: QR code apontando para
@@ -1154,9 +1193,9 @@ components:
       required: [nome]
       description: >
         Corpo de PUT /usuarios/me - o que a própria pessoa pode corrigir
-        sozinha. Bem menor que NovoUsuario (a tela do admin) de propósito:
-        e-mail, perfil, CPF e senha ficam de fora. Ver a descrição do
-        endpoint para o motivo de cada ausência.
+        sozinha, nos dois perfis. Bem menor que NovoUsuario (a tela do
+        admin) de propósito: e-mail, perfil e senha ficam de fora. Ver a
+        descrição do endpoint para o motivo de cada ausência.
       properties:
         nome:
           type: string
@@ -1168,6 +1207,14 @@ components:
             Obrigatório para aluno; ignorado para admin (é campo de
             aluno). Mesma limitação do OpenAPI descrita em
             NovoUsuario.rgm - a regra é validada no backend.
+        cpf:
+          type: string
+          pattern: '^\d{11}$'
+          nullable: true
+          description: >
+            Obrigatório para admin; ignorado para aluno. É o que confirma
+            a identidade dele em /auth/redefinir-senha, por isso ele
+            precisa conseguir corrigi-lo.
         curso:
           type: string
           nullable: true

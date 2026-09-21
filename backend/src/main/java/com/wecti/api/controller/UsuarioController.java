@@ -49,14 +49,19 @@ public class UsuarioController {
         return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponse.de(usuario));
     }
 
+    /** O id do autenticado vai junto para o service barrar o admin de
+     *  remover o proprio acesso (ver UsuarioService.atualizar). */
     @PutMapping("/usuarios/{usuarioId}")
-    public UsuarioResponse atualizar(@PathVariable UUID usuarioId, @Valid @RequestBody NovoUsuarioRequest request) {
-        return UsuarioResponse.de(usuarioService.atualizar(usuarioId, request));
+    public UsuarioResponse atualizar(@PathVariable UUID usuarioId,
+                                      @Valid @RequestBody NovoUsuarioRequest request,
+                                      @AuthenticationPrincipal AuthenticatedUser autenticado) {
+        return UsuarioResponse.de(usuarioService.atualizar(usuarioId, request, autenticado.id()));
     }
 
     @DeleteMapping("/usuarios/{usuarioId}")
-    public ResponseEntity<Void> excluir(@PathVariable UUID usuarioId) {
-        usuarioService.excluir(usuarioId);
+    public ResponseEntity<Void> excluir(@PathVariable UUID usuarioId,
+                                         @AuthenticationPrincipal AuthenticatedUser autenticado) {
+        usuarioService.excluir(usuarioId, autenticado.id());
         return ResponseEntity.noContent().build();
     }
 

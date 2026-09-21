@@ -46,10 +46,12 @@ app:
     # faz check-in, logo nao pontua - ficaria de fora de uma palestra em
     # que esta presente.
     #
-    # NAO passe de 30 minutos sem mexer tambem em
-    # app.checkin.tolerancia-antes-minutos: o check-in abre 30 min antes
-    # do inicio, e uma folga maior deixaria o aluno se inscrever num
-    # evento em que ja nao consegue confirmar presenca.
+    # NAO passe de 30 minutos: a pontuacao exige 75% de permanencia, e
+    # numa palestra de 2 horas quem entra 30 min atrasado fica com
+    # exatamente 90 min de 120 - ou seja, 30 min ja e o limite. Uma folga
+    # maior deixaria o aluno se inscrever numa palestra em que ele nao
+    # tem mais como alcancar a presenca minima, o que e pior do que nao
+    # deixar inscrever: ele acha que vai pontuar e nao pontua.
     tolerancia-apos-inicio-minutos: ${INSCRICAO_TOLERANCIA_MINUTOS:15}
   checkin:
     # De quanto em quanto tempo o codigo embutido no QR de check-in muda
@@ -65,8 +67,14 @@ app:
     # A sessao de check-in so aceita confirmacao dentro do horario do
     # proprio evento, mais estas folgas. Antes valia "criacao + 6 horas",
     # o que deixava um QR gerado de manha ainda funcionando a tarde.
-    # Antes: tempo pro admin projetar o QR enquanto a sala enche.
-    tolerancia-antes-minutos: ${CHECKIN_TOLERANCIA_ANTES_MINUTOS:30}
+    #
+    # Antes: a partir de quando o admin ja consegue gerar e projetar o QR.
+    # Uma hora, a pedido do professor (setembro de 2026) - eram 30 min, e
+    # isso obrigava a montar a sala e so entao liberar o QR, em cima da
+    # hora. Aumentar so estende o inicio da janela; nao afeta quem ja
+    # esta dentro dela nem a regra dos 75% de permanencia, que e contada
+    # pelo horario do evento, nao pelo do check-in.
+    tolerancia-antes-minutos: ${CHECKIN_TOLERANCIA_ANTES_MINUTOS:60}
     # Depois: tempo pra quem esta saindo fazer o check-out na porta.
     tolerancia-depois-minutos: ${CHECKIN_TOLERANCIA_DEPOIS_MINUTOS:30}
   pontuacao:

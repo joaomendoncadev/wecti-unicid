@@ -201,7 +201,7 @@ certa, e funciona por `curl`.
 | `RATE_LIMIT_MAX_FALHAS` | `10` | Tentativas de login erradas antes de bloquear o IP |
 | `RATE_LIMIT_JANELA_MINUTOS` | `15` | Duração do bloqueio |
 | `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `60` | De quanto em quanto tempo o QR se renova |
-| `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `30` | Quanto antes do evento o check-in abre |
+| `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `60` | Quanto antes do evento o admin já consegue gerar e projetar o QR |
 | `CHECKIN_TOLERANCIA_DEPOIS_MINUTOS` | `30` | Quanto depois do fim o check-out ainda vale |
 | `INSCRICAO_TOLERANCIA_MINUTOS` | `15` | Folga para se inscrever depois do início |
 
@@ -220,7 +220,10 @@ internet ruim começa a perder check-in legítimo.
 **Sobre a folga de inscrição:** existe para quem chega atrasado. Sem ela, quem
 aparece 5 minutos depois do começo não se inscreve, logo não faz check-in, logo
 não pontua — ficaria de fora de uma palestra em que está presente. **Não passe
-de 30 minutos** sem mexer também em `CHECKIN_TOLERANCIA_ANTES_MINUTOS`.
+de 30 minutos:** a pontuação exige 75% de permanência, e numa palestra de 2 horas
+quem entra 30 min atrasado fica com exatamente 90 de 120 min. Uma folga maior
+deixaria o aluno se inscrever numa palestra em que já não alcança a presença
+mínima — ele acha que vai pontuar e não pontua.
 
 ---
 

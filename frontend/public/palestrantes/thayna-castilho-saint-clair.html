@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thayná Castilho Saint Clair &ndash; Palestrante WECTI 2026</title>
+  <meta name="description" content="AWS na prática: da ideia ao sistema em produção &mdash; palestra de Thayná Castilho Saint Clair na WECTI 2026." />
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+
+  <!-- ── NAVBAR ── -->
+  <nav id="navbar">
+    <div class="nav-logo">
+      <!-- Mascot icon -->
+      <svg class="nav-logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Head -->
+        <rect x="9" y="8" width="18" height="14" rx="4" fill="none" stroke="#00e8c4" stroke-width="1.5"/>
+        <!-- Eyes -->
+        <circle cx="14" cy="14" r="2" fill="#00e8c4"/>
+        <circle cx="22" cy="14" r="2" fill="#00e8c4"/>
+        <!-- Eye glow -->
+        <circle cx="14" cy="14" r="1" fill="#fff" opacity="0.7"/>
+        <circle cx="22" cy="14" r="1" fill="#fff" opacity="0.7"/>
+        <!-- Mouth -->
+        <rect x="13" y="18" width="10" height="1.5" rx="0.75" fill="#00e8c4" opacity="0.7"/>
+        <!-- Antenna -->
+        <line x1="18" y1="8" x2="18" y2="4" stroke="#00e8c4" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="18" cy="3" r="1.5" fill="#00d4b0"/>
+        <!-- Neck -->
+        <rect x="16" y="22" width="4" height="2" fill="#00e8c4" opacity="0.5"/>
+        <!-- Body -->
+        <rect x="10" y="24" width="16" height="9" rx="3" fill="none" stroke="#00e8c4" stroke-width="1.5" opacity="0.8"/>
+        <!-- Body detail -->
+        <rect x="13" y="27" width="4" height="3" rx="1" fill="#00e8c4" opacity="0.3"/>
+        <circle cx="24" cy="28.5" r="1.5" fill="#00e8c4" opacity="0.5"/>
+        <!-- Arms -->
+        <line x1="10" y1="26" x2="6" y2="29" stroke="#00e8c4" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="26" y1="26" x2="30" y2="29" stroke="#00e8c4" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      WECTI
+    </div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="../home.html#home">Home</a></li>
+      <li><a href="../home.html#palestrantes">Palestrantes</a></li>
+      <li><a href="../home.html#galeria">Galeria</a></li>
+      <li><a href="../home.html#sobre">Sobre</a></li>
+      <li><a href="../home.html#contato">Contato</a></li>
+      <li><a href="../inscricoes.html">Inscrições</a></li>
+      <!--
+        Entrada para o sistema. Os dois caminhos que um aluno pode
+        precisar: quem nunca entrou cria a conta, quem ja tem faz login.
+        As rotas /cadastro e /login sao do app React (ver App.tsx); o
+        .htaccess entrega o index.html do app para elas.
+      -->
+      <li class="nav-acesso"><a href="/cadastro" class="nav-ghost">Primeiro acesso</a></li>
+      <li class="nav-acesso"><a href="/login" class="nav-cta">Login</a></li>
+    </ul>
+    <div class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </div>
+  </nav>
+
+  <!-- ── FAIXA DO TOPO ── -->
+  <header class="pagina-topo">
+    <h1>Palestrante</h1>
+    <div class="footer-divider"></div>
+  </header>
+
+  <!-- ── PALESTRANTE ── -->
+  <section>
+    <div class="container">
+      <article class="palestrante-detalhe">
+        <img class="foto" src="../fotos/thayna-castilho-saint-clair.jpg" alt="Thayná Castilho Saint Clair" width="180" height="180" />
+
+        <div>
+          <h2>Thayná Castilho Saint Clair</h2>
+
+          <div class="palestrante-meta">
+            <span><strong>Tema:</strong> AWS na prática: da ideia ao sistema em produção</span>
+          </div>
+
+          <div class="palestrante-bio">
+            <p>Thayná Castilho Saint Clair é Strategic Account Manager na BHS, formada em Gestão Comercial e atualmente cursando IoT &amp; Cloud Computing. Possui mais de 11 anos de experiência no mercado de Tecnologia da Informação, com atuação em Cloud, Cybersecurity e vendas consultivas de soluções para grandes empresas.</p>
+            <p>Ao longo de sua carreira, atuou em empresas como Software.com.br, Embarcadero Technologies, FCamara e Pise4 Tecnologia, construindo experiência em projetos de Cloud e infraestrutura, incluindo soluções AWS com Amazon S3 e Amazon EC2. Em sua trajetória, participou de projetos e iniciativas para empresas como Sestini, EssilorLuxottica, OXXO, XP Investimentos e BTG Pactual.</p>
+            <p>Atualmente, na BHS, atua na estratégia e expansão de contas corporativas, conectando desafios de negócio a soluções AWS, Microsoft, Inteligência Artificial, Cibersegurança, Dados e Observabilidade.</p>
+          </div>
+
+          <a class="voltar" href="../home.html#palestrantes">&#8592; Voltar para os palestrantes</a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer id="contato">
+    <div class="footer-logo">WECTI</div>
+    <div class="footer-divider"></div>
+    <p class="footer-text">
+      Workshop de Empreendedorismo, Ciência, Tecnologia e Inovação &mdash; Tech Revolution &middot; 6ª Edição
+    </p>
+    <p class="footer-text" style="margin-top:1.5rem; font-size:0.75rem; opacity:0.5;">
+      © 2026 WECTI. Template desenvolvido para a 6ª edição.
+    </p>
+  </footer>
+
+  <script>
+    // Mesmo comportamento da home: menu no celular e navbar que escurece
+    // ao rolar. Duplicado de proposito - sao paginas estaticas, sem build.
+    function toggleMenu() {
+      document.getElementById('navLinks').classList.toggle('open');
+    }
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').style.background =
+        window.scrollY > 40 ? 'rgba(10,10,15,0.96)' : 'rgba(10,10,15,0.75)';
+    });
+  </script>
+</body>
+</html>

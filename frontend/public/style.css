@@ -202,6 +202,46 @@ nav {
   line-height: 1.7;
   margin-bottom: 2.5rem;
 }
+/*
+   Quando acontece, logo abaixo da chamada. Os dias sao tres caixas
+   grandes porque o numero e a informacao que a pessoa procura primeiro
+   na landing; o mes e os turnos ficam ao lado, em texto menor, para nao
+   competir com eles.
+*/
+.hero-datas {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.hero-datas-dias { display: flex; gap: 0.5rem; }
+.hero-dia {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 0.5rem 0.25rem;
+  border: 1px solid rgba(0,212,176,0.3);
+  border-radius: var(--radius);
+  background: rgba(0,212,176,0.08);
+  color: var(--accent-light);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* Sem isto, "28" e "30" ficam com larguras diferentes e as caixas
+     desalinham por um fio. */
+  font-variant-numeric: tabular-nums;
+}
+.hero-datas-texto { display: flex; flex-direction: column; gap: 0.15rem; }
+.hero-datas-texto strong {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.hero-datas-texto span { font-size: 0.8125rem; color: var(--text-muted); }
+
 .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
 .btn-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -555,13 +595,28 @@ section { padding: 6rem 2rem; }
 .palestrantes-header { text-align: center; margin-bottom: 5rem; }
 .palestrantes-header .section-desc { max-width: 520px; }
 
-/* Tres colunas porque sao nove palestrantes - fecha 3x3 certinho. Com
-   quatro colunas a ultima linha ficava com um card solto e esticado. */
+/*
+   Tres por linha, em flex e nao em grid: o numero de palestrantes muda a
+   cada edicao (foram 4, depois 9, agora 11) e quase nunca e multiplo de
+   3. Com grid, a ultima linha incompleta encostava na esquerda e deixava
+   um buraco na direita; com flex + justify-content, ela fica centrada
+   sozinha, seja qual for a quantidade.
+
+   A largura de cada card e calculada descontando os gaps da linha, para
+   manter exatamente as mesmas tres colunas de antes.
+*/
 .palestrantes-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1.25rem;
   align-items: stretch;
+}
+.palestrantes-grid > .palestrante-card {
+  flex: 0 1 calc((100% - 2 * 1.25rem) / 3);
+  /* Sem isto, um tema longo empurra o card para alem da largura da
+     coluna em vez de quebrar a linha. */
+  min-width: 0;
 }
 
 /*
@@ -619,10 +674,11 @@ section { padding: 6rem 2rem; }
   flex-grow: 1;
 }
 @media (max-width: 900px) {
-  .palestrantes-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .palestrantes-grid { gap: 1rem; }
+  .palestrantes-grid > .palestrante-card { flex-basis: calc((100% - 1rem) / 2); }
 }
 @media (max-width: 560px) {
-  .palestrantes-grid { grid-template-columns: 1fr; }
+  .palestrantes-grid > .palestrante-card { flex-basis: 100%; }
 }
 
 /* ──────────────────────────────────────────

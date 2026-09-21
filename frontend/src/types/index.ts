@@ -242,7 +242,10 @@ export interface CadastroAlunoRequest {
  *  AtualizarPerfilRequest no backend. */
 export interface AtualizarPerfil {
   nome: string;
+  /** Só para aluno; ignorado pelo backend quando o perfil é admin. */
   rgm?: string;
+  /** Só para admin; ignorado pelo backend quando o perfil é aluno. */
+  cpf?: string;
   curso?: string;
 }
 

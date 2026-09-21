@@ -53,10 +53,12 @@ confirmar de novo.
   5 minutos depois do começo não se inscreve, logo não faz check-in, logo
   não pontua — ficaria de fora de uma palestra em que está presente.
   Configurável em `app.inscricao.tolerancia-apos-inicio-minutos`, mas
-  **não passe de 30 minutos** sem mexer também em
-  `app.checkin.tolerancia-antes-minutos`: o check-in abre 30 min antes do
-  início, e uma folga maior deixaria o aluno se inscrever num evento em
-  que já não consegue confirmar presença.
+  **não passe de 30 minutos**: a pontuação exige 75% de permanência, e
+  numa palestra de 2 horas quem entra 30 min atrasado fica com exatamente
+  90 min de 120 — 30 é o limite. Uma folga maior deixaria o aluno se
+  inscrever numa palestra em que já não tem como alcançar a presença
+  mínima, o que é pior do que não deixar inscrever: ele acha que vai
+  pontuar e não pontua.
 
   > Antes o cancelamento era "até 1 dia antes" e a inscrição ia até o
   > **fim** do evento — dois prazos diferentes, e nenhum deles fazia
@@ -74,6 +76,15 @@ confirmar de novo.
 - **Certificado**: exige check-in + check-out + permanência >= 75% da
   duração do evento (`data_hora_fim - data_hora_inicio`). Ver o método
   `Checkin.isPresencaQualificada(...)`.
+
+  **Só conta o tempo dentro do horário do evento.** O check-in abre 1h
+  antes e fecha 30min depois (`app.checkin.tolerancia-*`), então entrada
+  e saída podem cair fora da palestra — e essa folga não é presença. A
+  conta é a **interseção** entre `[entrada, saida]` e
+  `[dataHoraInicio, dataHoraFim]`. Sem o recorte, quem chegasse na metade
+  e só marcasse a saída no corredor somava os dois pedaços de folga e
+  passava nos 75% sem ter assistido. Quem fica do começo ao fim não é
+  afetado.
 - **Pontuação**: cada evento tem um valor fixo de pontos
   (`Evento.pontos`), definido no cadastro do evento. Só conta para o
   aluno quando ele cumpre o mesmo critério do certificado - não basta o
@@ -102,11 +113,25 @@ confirmar de novo.
 - **Ranking: só admin.** O aluno vê a própria pontuação (`/me/pontuacao`),
   não a classificação da turma. `GET /ranking` exige ADMIN no
   `SecurityConfig` - a restrição é do backend, não só do menu.
-- **O aluno corrige o próprio cadastro** em `PUT /usuarios/me`: nome, RGM
-  e curso. **Não** mexe em e-mail (é o login - errar ali tiraria o acesso
-  da própria pessoa), perfil (seria escalada de privilégio) nem senha
-  (essa vai por `/auth/redefinir-senha`). O id vem do token, nunca do
-  corpo.
+- **Cada pessoa corrige o próprio cadastro** em `PUT /usuarios/me`, os
+  dois perfis: **aluno** em nome, RGM e curso; **admin** em nome e CPF.
+  O campo do outro perfil vem no corpo mas é ignorado, então aluno não
+  ganha CPF nem admin ganha RGM.
+
+  **Não** mexe em e-mail (é o login - errar ali tiraria o acesso da
+  própria pessoa), perfil (seria escalada de privilégio) nem senha (essa
+  vai por `/auth/redefinir-senha`). O id vem do token, nunca do corpo.
+- **O admin edita qualquer cadastro** em `PUT /usuarios/{id}` (tela de
+  Usuários), incluindo e-mail e perfil - campos que o dono não mexe
+  sozinho. Duas travas impedem que ele se tranque fora do sistema:
+
+  - **não pode rebaixar a si mesmo** para ALUNO;
+  - **não pode excluir a própria conta**.
+
+  Só admin cria admin, então um admin que se rebaixasse não teria quem o
+  promovesse de volta - o sistema ficaria sem administrador e só um
+  acesso direto ao banco resolveria. Rebaixar **outro** admin é
+  permitido: isso sempre deixa pelo menos um de pé, que é ele mesmo.
 - **Não existe recorte por semestre.** A pontuação é simplesmente a do
   aluno no WECTI, somando todas as palestras mais os pontos de gincana.
   Não há reinício por período.

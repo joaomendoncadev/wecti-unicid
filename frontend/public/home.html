@@ -73,7 +73,7 @@
 
     <div class="hero-content">
       <div class="hero-text">
-        <div class="hero-eyebrow">Em breve · 6ª Edição</div>
+        <div class="hero-eyebrow">28, 29 e 30 de setembro · 6ª Edição</div>
 
         <h1 class="hero-title">
           Tech<br/>
@@ -85,9 +85,27 @@
           IA Generativa, Cloud e Desenvolvimento Inteligente — a 6ª edição da WECTI explora as tecnologias que estão transformando o mundo.
         </p>
 
+        <!--
+          Datas fixas no HTML: sao tres dias definidos, nao dados que
+          mudam sozinhos. A agenda detalhada (qual palestra em que
+          horario) vive no sistema, na tela de Eventos - aqui fica so o
+          quando, que e o que quem chega na landing quer saber primeiro.
+        -->
+        <div class="hero-datas">
+          <div class="hero-datas-dias">
+            <span class="hero-dia">28</span>
+            <span class="hero-dia">29</span>
+            <span class="hero-dia">30</span>
+          </div>
+          <div class="hero-datas-texto">
+            <strong>Setembro de 2026</strong>
+            <span>Palestras de manhã e à noite nos três dias</span>
+          </div>
+        </div>
+
         <div class="hero-actions">
-          <a href="#sobre" class="btn-primary">Saiba mais</a>
-          <a href="#galeria" class="btn-outline">Ver edições anteriores</a>
+          <a href="inscricoes.html" class="btn-primary">Fazer inscrição</a>
+          <a href="#palestrantes" class="btn-outline">Ver palestrantes</a>
         </div>
       </div>
 
@@ -269,6 +287,20 @@
           <p class="palestrante-tema">Vibe coding aplicado a ambiente multicloud com foco em portabilidade e agnóstico.</p>
         </a>
 
+        <a class="palestrante-card" href="palestrantes/thayna-castilho-saint-clair.html">
+          <img class="palestrante-foto" src="fotos/thayna-castilho-saint-clair.jpg"
+               alt="Thayná Castilho Saint Clair" width="140" height="140" loading="lazy" />
+          <h3 class="palestrante-nome">Thayná Castilho Saint Clair</h3>
+          <p class="palestrante-tema">AWS na prática: da ideia ao sistema em produção</p>
+        </a>
+
+        <a class="palestrante-card" href="palestrantes/luciana-bento.html">
+          <img class="palestrante-foto" src="fotos/luciana-bento.jpg"
+               alt="Luciana Bento" width="140" height="140" loading="lazy" />
+          <h3 class="palestrante-nome">Luciana Bento</h3>
+          <p class="palestrante-tema">LinkedIn do Zero: Como Criar um Perfil que Chama a Atenção dos Recrutadores</p>
+        </a>
+
       </div>
     </div>
   </section>
@@ -344,12 +376,15 @@
           <p class="edition-label">Edição · 2026</p>
 
           <div class="about-card">
-            <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:1rem;">Novidades em breve</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:1rem;">Datas confirmadas</div>
             <p style="font-size:0.875rem; color:var(--text-muted); line-height:1.7;">
-              A 6ª edição da WECTI está sendo preparada com muito cuidado. Em breve: datas, programação, palestras e como inscrever seu projeto em <strong style="color:var(--accent)">Tech Revolution</strong>.
+              A 6ª edição acontece nos dias <strong style="color:var(--accent)">28, 29 e 30 de setembro de 2026</strong>, com palestras de manhã e à noite nos três dias. As inscrições nas atividades de <strong style="color:var(--accent)">Tech Revolution</strong> já estão abertas.
             </p>
+            <!-- O botao aqui era href="#" com o texto "Em breve": nao
+                 levava a lugar nenhum. Agora que ha o que mostrar, ele
+                 leva para a pagina de inscricoes. -->
             <div style="margin-top:1.5rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; gap:1rem; justify-content:center;">
-              <a href="#" class="btn-primary" style="font-size:0.825rem; padding:0.6rem 1.4rem;">Em breve</a>
+              <a href="inscricoes.html" class="btn-primary" style="font-size:0.825rem; padding:0.6rem 1.4rem;">Ver inscrições</a>
             </div>
           </div>
         </div>

@@ -169,6 +169,31 @@ class CheckinSessaoServiceTest {
     }
 
     @Test
+    @DisplayName("a abertura da janela segue a tolerancia configurada, e nao um valor fixo")
+    void aberturaRespeitaAConfiguracao() {
+        // Evento daqui a 45 minutos: fora de uma folga de 30, dentro de
+        // uma de 60. E o unico jeito de o teste distinguir as duas - com
+        // um evento em +10 min, qualquer uma das duas passaria.
+        Evento evento = evento(LocalDateTime.now().plusMinutes(45), LocalDateTime.now().plusHours(2));
+        when(eventoRepository.findById(eventoId)).thenReturn(Optional.of(evento));
+
+        CheckinSessaoService com30 = servicoComToleranciaAntes(30);
+        assertThatThrownBy(() -> com30.criar(eventoId, TipoSessaoCheckin.ENTRADA))
+                .as("com folga de 30 min, faltando 45 para comecar ainda e cedo demais")
+                .isInstanceOf(RegraNegocioException.class);
+
+        CheckinSessaoService com60 = servicoComToleranciaAntes(60);
+        assertThat(com60.criar(eventoId, TipoSessaoCheckin.ENTRADA))
+                .as("com 60 - o valor pedido pelo professor - o mesmo evento ja libera o QR")
+                .isNotNull();
+    }
+
+    private CheckinSessaoService servicoComToleranciaAntes(long minutos) {
+        return new CheckinSessaoService(sessaoRepository, eventoRepository, inscricaoRepository,
+                checkinService, codigoRotativo, minutos, TOLERANCIA_DEPOIS);
+    }
+
+    @Test
     @DisplayName("recusa gerar QR antes da janela abrir")
     void recusaGerarAntesDaJanela() {
         Evento evento = evento(LocalDateTime.now().plusHours(5), LocalDateTime.now().plusHours(7));

@@ -76,11 +76,32 @@ export default function UsuarioFormModal({ usuario, onSalvar, onFechar }: Props)
 
   const perfil = watch('perfil');
 
+  /**
+   * Manda só o campo de identificador do perfil escolhido, e nunca uma
+   * string vazia.
+   *
+   * Sem isto, editar QUALQUER cadastro existente falhava: os
+   * `defaultValues` transformam o campo ausente em `''` (`usuario.cpf ??
+   * ''`), e esse `''` ia no corpo da requisição mesmo quando o campo
+   * nunca chegou a aparecer na tela - `shouldUnregister` só limpa o que
+   * foi montado e depois desmontado, não o que nunca montou. Do outro
+   * lado, o `@Pattern` do backend valida o formato de toda string
+   * presente, então recusava `""` com "CPF deve ter exatamente 11
+   * digitos" num formulário de aluno que nem tem campo de CPF.
+   */
   const onSubmit = async (dados: FormValues) => {
     setErroGeral(null);
     setSalvando(true);
     try {
-      await onSalvar(dados);
+      const ehAluno = dados.perfil === 'ALUNO';
+      await onSalvar({
+        nome: dados.nome,
+        email: dados.email,
+        perfil: dados.perfil,
+        rgm: ehAluno ? dados.rgm : undefined,
+        cpf: ehAluno ? undefined : dados.cpf,
+        curso: ehAluno ? dados.curso || undefined : undefined,
+      });
     } catch (e) {
       setErroGeral(e instanceof Error ? e.message : 'Não foi possível salvar o usuário.');
     } finally {

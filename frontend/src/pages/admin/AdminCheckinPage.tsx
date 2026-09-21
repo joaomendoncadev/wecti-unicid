@@ -4,11 +4,12 @@ import Button from '../../components/Button';
 import { LoadingBlock } from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { useEventos } from '../../hooks/useEventos';
-import { criarSessaoCheckin, buscarQrCodeSessao, listarCheckinsDoEvento } from '../../services/checkins';
+import { useCheckinsDoEvento } from '../../hooks/useCheckinsDoEvento';
+import { criarSessaoCheckin, buscarQrCodeSessao } from '../../services/checkins';
 import { extrairMensagemErro } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { formatarDataHora } from '../../utils/data';
-import type { EventoCheckin, SessaoCheckin, TipoSessaoCheckin } from '../../types';
+import type { SessaoCheckin, TipoSessaoCheckin } from '../../types';
 
 /** Folga depois do fim da janela, pra pedir o QR seguinte já dentro da
  *  janela nova e não pegar o código velho por causa de arredondamento de
@@ -41,31 +42,18 @@ export default function AdminCheckinPage() {
   const [gerando, setGerando] = useState(false);
   const [erroRotacao, setErroRotacao] = useState<string | null>(null);
 
-  const [participantes, setParticipantes] = useState<EventoCheckin[]>([]);
-  const [carregandoParticipantes, setCarregandoParticipantes] = useState(false);
-
-  // Lista de presença - recarrega sempre que o evento selecionado muda
-  // (e também depois de gerar um QR, via recarregarParticipantes abaixo,
-  // já que confirmações podem já ter acontecido enquanto essa tela ficava
-  // aberta com o QR anterior).
-  useEffect(() => {
-    if (!eventoId) {
-      setParticipantes([]);
-      return;
-    }
-    setCarregandoParticipantes(true);
-    listarCheckinsDoEvento(eventoId)
-      .then(setParticipantes)
-      .catch(() => setParticipantes([]))
-      .finally(() => setCarregandoParticipantes(false));
-  }, [eventoId]);
-
-  const recarregarParticipantes = () => {
-    if (!eventoId) return;
-    listarCheckinsDoEvento(eventoId)
-      .then(setParticipantes)
-      .catch(() => {});
-  };
+  // Lista de presença: se atualiza sozinha enquanto a tela fica aberta,
+  // que é o modo como ela é usada (projetada durante o check-in). O
+  // botão "Atualizar" continua ali para forçar agora.
+  const {
+    participantes,
+    carregandoInicial: carregandoParticipantes,
+    atualizando,
+    atualizadoEm,
+    erro: erroParticipantes,
+    recarregar: recarregarParticipantes,
+    intervaloSegundos,
+  } = useCheckinsDoEvento(eventoId);
 
   /** Esconde o QR gerado anteriormente assim que o evento ou o tipo
    *  mudam - sem isso, o QR (e o link embutido nele) continuavam sendo
@@ -232,13 +220,38 @@ export default function AdminCheckinPage() {
             <div>
               <h2 className="text-lg font-bold text-text">Participantes do Evento</h2>
               <p className="text-sm text-text-muted">
-                {carregandoParticipantes ? 'Carregando...' : `${participantes.length} participante${participantes.length === 1 ? '' : 's'} presente${participantes.length === 1 ? '' : 's'}.`}
+                {carregandoParticipantes
+                  ? 'Carregando...'
+                  : `${participantes.length} participante${participantes.length === 1 ? '' : 's'} presente${participantes.length === 1 ? '' : 's'}.`}
               </p>
+              {/* Prova de vida: num telão, uma lista parada e uma lista
+                  quebrada têm exatamente a mesma aparência. O horário da
+                  última atualização é o que distingue as duas. */}
+              {atualizadoEm && (
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                      atualizando ? 'bg-accent' : 'bg-accent/40'
+                    }`}
+                    aria-hidden
+                  />
+                  Atualiza sozinha a cada {intervaloSegundos}s - última às{' '}
+                  {atualizadoEm.toLocaleTimeString('pt-BR')}
+                </p>
+              )}
             </div>
-            <Button variante="outline" onClick={recarregarParticipantes} disabled={carregandoParticipantes}>
+            <Button variante="outline" onClick={recarregarParticipantes} carregando={atualizando}>
               Atualizar
             </Button>
           </div>
+
+          {/* A lista continua na tela: uma falha de rede momentânea não
+              pode apagar a lista de presença projetada. */}
+          {erroParticipantes && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-300">
+              {erroParticipantes} Tentando de novo em alguns segundos.
+            </p>
+          )}
 
           {carregandoParticipantes && <LoadingBlock mensagem="Carregando participantes..." />}
 
@@ -246,7 +259,7 @@ export default function AdminCheckinPage() {
             <EmptyState titulo="Nenhum check-in ainda" descricao="Assim que um aluno confirmar a entrada, ele aparece aqui." />
           )}
 
-          {!carregandoParticipantes && participantes.length > 0 && (
+          {participantes.length > 0 && (
             <div className="overflow-x-auto rounded-card border border-border">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <thead>

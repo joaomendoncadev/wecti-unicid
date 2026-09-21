@@ -84,8 +84,27 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
-    public Usuario atualizar(UUID id, NovoUsuarioRequest request) {
+    /**
+     * Tela de Usuarios do admin: edita qualquer cadastro, inclusive o
+     * perfil e o email - campos que o proprio dono nao mexe sozinho (ver
+     * {@link #atualizarMeuPerfil}).
+     *
+     * @param solicitanteId o admin que esta fazendo a alteracao, para a
+     *                      trava de auto-rebaixamento abaixo
+     */
+    public Usuario atualizar(UUID id, NovoUsuarioRequest request, UUID solicitanteId) {
         Usuario usuario = buscarPorId(id);
+
+        // So admin cria admin. Se o admin logado se rebaixasse a ALUNO,
+        // nao haveria ninguem para promove-lo de volta - o sistema
+        // ficaria sem administrador e so um acesso direto ao banco
+        // resolveria. Ele pode rebaixar OUTRO admin; isso sempre deixa
+        // pelo menos um de pe, que e ele mesmo.
+        if (id.equals(solicitanteId) && request.perfil() != Perfil.ADMIN) {
+            throw new RegraNegocioException(
+                    "Voce nao pode remover o proprio acesso de administrador. "
+                            + "Peca a outro administrador para fazer essa alteracao.");
+        }
 
         validarIdentificadoresObrigatorios(request);
         validarEmailUnico(request.email(), id);
@@ -106,15 +125,17 @@ public class UsuarioService {
      * A propria pessoa corrigindo o cadastro (PUT /usuarios/me). Nasceu
      * de um problema real: muito aluno errou nome, RGM ou curso no
      * autocadastro e nao tinha como arrumar - sobrava para o admin, um a
-     * um.
+     * um. Vale para os dois perfis: o admin usa a mesma tela para os
+     * dados dele.
      *
-     * <p>Mexe so no que {@link AtualizarPerfilRequest} carrega. Email,
-     * perfil, CPF e senha ficam de fora - ver o javadoc do DTO para o
-     * motivo de cada um. Em especial, <b>o perfil nunca e tocado aqui</b>:
-     * e o que impede um aluno de virar admin mandando JSON.
+     * <p>Cada perfil mexe no que e seu, com a mesma regra de {@link #criar}:
+     * ALUNO em rgm e curso, ADMIN em cpf. O campo do outro perfil vem no
+     * corpo mas e ignorado, entao nao ha como um aluno se dar um CPF nem
+     * um admin se dar um RGM.
      *
-     * <p>Para ADMIN, rgm e curso sao ignorados (sao campos de aluno), e
-     * so o nome muda - mesma logica de {@link #criar}.
+     * <p>Email, perfil e senha ficam de fora - ver o javadoc do DTO para
+     * o motivo de cada um. Em especial, <b>o perfil nunca e tocado
+     * aqui</b>: e o que impede um aluno de virar admin mandando JSON.
      */
     public Usuario atualizarMeuPerfil(UUID id, AtualizarPerfilRequest request) {
         Usuario usuario = buscarPorId(id);
@@ -128,6 +149,14 @@ public class UsuarioService {
             validarRgmUnico(request.rgm(), id);
             usuario.setRgm(request.rgm());
             usuario.setCurso(request.curso());
+        } else if (usuario.getPerfil() == Perfil.ADMIN) {
+            // Mesma exigencia de criar(): sem CPF, o admin perde o unico
+            // jeito de redefinir a propria senha (ver redefinirSenha).
+            if (request.cpf() == null || request.cpf().isBlank()) {
+                throw new CampoInvalidoException("cpf", "CPF e obrigatorio para usuarios com perfil ADMIN");
+            }
+            validarCpfUnico(request.cpf(), id);
+            usuario.setCpf(request.cpf());
         }
 
         return usuarioRepository.save(usuario);
@@ -179,8 +208,14 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
-    public void excluir(UUID id) {
+    public void excluir(UUID id, UUID solicitanteId) {
         Usuario usuario = buscarPorId(id);
+        // Mesma razao da trava em atualizar(): apagar a propria conta
+        // deixaria o sistema potencialmente sem administrador, e nao ha
+        // como desfazer pela aplicacao.
+        if (id.equals(solicitanteId)) {
+            throw new RegraNegocioException("Voce nao pode excluir a propria conta.");
+        }
         if (inscricaoRepository.existsByAlunoId(id)) {
             throw new RegraNegocioException("Nao e possivel excluir um usuario que ja possui inscricoes");
         }

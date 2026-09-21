@@ -18,18 +18,29 @@ const LABEL_PERFIL: Record<string, string> = {
   ALUNO: 'Aluno',
 };
 
+/*
+ * Apesar de morar em pages/aluno, esta tela serve os DOIS perfis: a rota
+ * /perfil é a única sem restrição de perfil (ver App.tsx). Cada um edita
+ * o que é seu — aluno: RGM e curso; admin: CPF. Quem decide é o perfil
+ * que vem da API, não o do token, para a tela refletir o cadastro real.
+ */
+
 const schema = z.object({
   nome: z.string().min(1, 'Informe o nome'),
   rgm: z.string().optional(),
+  cpf: z.string().optional(),
   // Só informativo (confirmado com o professor) - sem formato exigido.
   curso: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-/** Mesmo formato exigido pelo backend (8 dígitos). Validado aqui só para
- *  o aluno ver o erro antes de enviar; quem garante é o servidor. */
+/** Mesmos formatos exigidos pelo backend. Validados aqui só para a
+ *  pessoa ver o erro antes de enviar; quem garante é o servidor. */
 const RGM_VALIDO = /^\d{8}$/;
+const CPF_VALIDO = /^\d{11}$/;
+
+const AJUDA_NUMERICO = 'Digite apenas números, sem pontos ou traços.';
 
 export default function PerfilPage() {
   const { usuario: usuarioDaSessao, atualizarUsuario } = useAuth();
@@ -42,6 +53,7 @@ export default function PerfilPage() {
   const [salvando, setSalvando] = useState(false);
 
   const ehAluno = usuario?.perfil === 'ALUNO';
+  const ehAdmin = usuario?.perfil === 'ADMIN';
 
   const {
     register,
@@ -54,7 +66,7 @@ export default function PerfilPage() {
     buscarMeuUsuario()
       .then((dados) => {
         setUsuario(dados);
-        reset({ nome: dados.nome, rgm: dados.rgm ?? '', curso: dados.curso ?? '' });
+        reset({ nome: dados.nome, rgm: dados.rgm ?? '', cpf: dados.cpf ?? '', curso: dados.curso ?? '' });
       })
       .catch((e) => setErro(extrairMensagemErro(e, 'Não foi possível carregar seu perfil.')))
       .finally(() => setCarregando(false));
@@ -64,7 +76,7 @@ export default function PerfilPage() {
     // Volta o formulário para os valores salvos: sem isso, reabrir a
     // edição depois de desistir traria o texto rascunhado de antes.
     if (usuario) {
-      reset({ nome: usuario.nome, rgm: usuario.rgm ?? '', curso: usuario.curso ?? '' });
+      reset({ nome: usuario.nome, rgm: usuario.rgm ?? '', cpf: usuario.cpf ?? '', curso: usuario.curso ?? '' });
     }
     setEditando(false);
   };
@@ -74,9 +86,11 @@ export default function PerfilPage() {
     try {
       const atualizado = await atualizarMeuPerfil({
         nome: dados.nome,
-        // RGM e curso são campos de aluno - o backend ignora os dois para
-        // admin, e mandar o RGM vazio faria o @Pattern do DTO recusar.
+        // Cada perfil manda só o campo que é dele. Mandar o do outro
+        // vazio faria o @Pattern do DTO recusar, mesmo sendo um campo
+        // que o backend ignoraria de qualquer jeito.
         ...(ehAluno ? { rgm: dados.rgm, curso: dados.curso } : {}),
+        ...(ehAdmin ? { cpf: dados.cpf } : {}),
       });
       setUsuario(atualizado);
       // A navbar mostra o nome a partir do usuário guardado na sessão,
@@ -84,7 +98,12 @@ export default function PerfilPage() {
       if (usuarioDaSessao?.id === atualizado.id) {
         atualizarUsuario(atualizado);
       }
-      reset({ nome: atualizado.nome, rgm: atualizado.rgm ?? '', curso: atualizado.curso ?? '' });
+      reset({
+        nome: atualizado.nome,
+        rgm: atualizado.rgm ?? '',
+        cpf: atualizado.cpf ?? '',
+        curso: atualizado.curso ?? '',
+      });
       setEditando(false);
       notificarSucesso('Dados atualizados.');
     } catch (erroSalvar) {
@@ -122,6 +141,12 @@ export default function PerfilPage() {
                 </div>
               </>
             )}
+            {ehAdmin && (
+              <div>
+                <dt className="text-xs uppercase tracking-wider text-text-muted">CPF</dt>
+                <dd className="mt-1 text-text">{usuario.cpf ?? '-'}</dd>
+              </div>
+            )}
             <div>
               <dt className="text-xs uppercase tracking-wider text-text-muted">Perfil</dt>
               <dd className="mt-1 text-text">{LABEL_PERFIL[usuario.perfil] ?? usuario.perfil}</dd>
@@ -152,6 +177,7 @@ export default function PerfilPage() {
                 label="RGM"
                 inputMode="numeric"
                 maxLength={8}
+                placeholder={AJUDA_NUMERICO}
                 registro={register('rgm', {
                   validate: (valor) => RGM_VALIDO.test(valor ?? '') || 'RGM deve ter exatamente 8 dígitos',
                 })}
@@ -161,11 +187,34 @@ export default function PerfilPage() {
             </>
           )}
 
+          {ehAdmin && (
+            <FormField
+              label="CPF"
+              inputMode="numeric"
+              maxLength={11}
+              placeholder={AJUDA_NUMERICO}
+              registro={register('cpf', {
+                validate: (valor) => CPF_VALIDO.test(valor ?? '') || 'CPF deve ter exatamente 11 dígitos',
+              })}
+              erro={errors.cpf?.message}
+            />
+          )}
+
           {/* Explica o que a tela NÃO faz, no lugar onde a pessoa vai
-              procurar por isso, em vez de deixá-la caçar o botão. */}
+              procurar por isso, em vez de deixá-la caçar o botão. O
+              admin precisa da ressalva extra: ele TEM como trocar o
+              próprio e-mail, só que pela tela de Usuários. */}
           <p className="rounded-lg border border-border bg-bg/40 px-3.5 py-3 text-xs leading-relaxed text-text-muted">
-            O e-mail é o seu login e não muda por aqui — fale com a organização se
-            precisar corrigi-lo. Para trocar a senha, use{' '}
+            O e-mail é o seu login e não muda por aqui —{' '}
+            {ehAdmin ? (
+              <>
+                use a tela de <span className="text-text">Usuários</span> se precisar
+                corrigi-lo.
+              </>
+            ) : (
+              <>fale com a organização se precisar corrigi-lo.</>
+            )}{' '}
+            Para trocar a senha, use{' '}
             <span className="text-text">&ldquo;Esqueci minha senha&rdquo;</span> na tela de acesso.
           </p>
 
