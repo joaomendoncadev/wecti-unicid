@@ -65,13 +65,13 @@ export default function Navbar() {
         <Logo />
       </NavLink>
 
-      <ul className="hidden items-center gap-6 md:flex">
+      <ul className="hidden items-center gap-6 lg:flex">
         {itens.map((item) => (
           <li key={item.to}>
             <NavLink
               to={item.to}
               className={({ isActive }) =>
-                `text-sm font-medium transition-colors ${isActive ? 'text-accent' : 'text-text-muted hover:text-text'}`
+                `whitespace-nowrap text-sm font-medium transition-colors ${isActive ? 'text-accent' : 'text-text-muted hover:text-text'}`
               }
             >
               {item.label}
@@ -80,9 +80,9 @@ export default function Navbar() {
         ))}
       </ul>
 
-      <div className="hidden items-center gap-4 md:flex">
+      <div className="hidden items-center gap-4 lg:flex">
         {perfilNoMenu ? (
-          <span className="text-sm font-medium text-text-muted">{usuario?.nome}</span>
+          <span className="max-w-48 truncate text-sm font-medium text-text-muted">{usuario?.nome}</span>
         ) : (
           <NavLink
             to="/perfil"
@@ -102,7 +102,7 @@ export default function Navbar() {
       </div>
 
       <button
-        className="flex flex-col gap-1.5 md:hidden"
+        className="flex flex-col gap-1.5 lg:hidden"
         aria-label="Menu"
         onClick={() => setMenuAberto((v) => !v)}
       >
@@ -112,7 +112,7 @@ export default function Navbar() {
       </button>
 
       {menuAberto && (
-        <div className="fixed inset-x-0 top-16 flex flex-col gap-4 border-b border-border bg-[rgba(10,10,15,0.97)] p-6 md:hidden">
+        <div className="fixed inset-x-0 top-16 flex flex-col gap-4 border-b border-border bg-[rgba(10,10,15,0.97)] p-6 lg:hidden">
           {itens.map((item) => (
             <NavLink
               key={item.to}

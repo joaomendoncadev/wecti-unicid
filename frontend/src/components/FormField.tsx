@@ -3,10 +3,12 @@ import type { InputHTMLAttributes } from 'react';
 interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   erro?: string;
+  /** Dica curta abaixo do campo; some quando há erro, que ocupa o lugar. */
+  ajuda?: string;
   registro?: object;
 }
 
-export default function FormField({ label, erro, registro, className = '', ...rest }: Props) {
+export default function FormField({ label, erro, ajuda, registro, className = '', ...rest }: Props) {
   return (
     <label className="flex flex-col gap-1.5 text-sm">
       <span className="font-medium text-text">{label}</span>
@@ -17,7 +19,11 @@ export default function FormField({ label, erro, registro, className = '', ...re
         {...registro}
         {...rest}
       />
-      {erro && <span className="text-xs text-red-400">{erro}</span>}
+      {erro ? (
+        <span className="text-xs text-red-400">{erro}</span>
+      ) : (
+        ajuda && <span className="text-xs text-text-muted">{ajuda}</span>
+      )}
     </label>
   );
 }
