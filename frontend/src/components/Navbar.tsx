@@ -19,6 +19,9 @@ const MENU_ALUNO: ItemMenu[] = [
   { to: '/historico', label: 'Histórico' },
   { to: '/certificados', label: 'Certificados' },
   { to: '/pontuacao', label: 'Pontuação' },
+  // Aba própria, e não só o nome no canto: clicar no nome para editar o
+  // cadastro não era descoberto por quase ninguém.
+  { to: '/perfil', label: 'Perfil' },
 ];
 
 const MENU_ADMIN: ItemMenu[] = [
@@ -43,6 +46,9 @@ export default function Navbar() {
 
   const itens = perfil === 'ADMIN' ? MENU_ADMIN : MENU_ALUNO;
   const perfilInicial = homeDoPerfil(perfil);
+  // Com a aba Perfil no menu, o nome no canto vira só identificação -
+  // dois links para /perfil acenderiam juntos.
+  const perfilNoMenu = itens.some((item) => item.to === '/perfil');
 
   const handleSair = () => {
     sair();
@@ -75,14 +81,18 @@ export default function Navbar() {
       </ul>
 
       <div className="hidden items-center gap-4 md:flex">
-        <NavLink
-          to="/perfil"
-          className={({ isActive }) =>
-            `text-sm font-medium ${isActive ? 'text-accent' : 'text-text-muted hover:text-text'}`
-          }
-        >
-          {usuario?.nome ?? 'Perfil'}
-        </NavLink>
+        {perfilNoMenu ? (
+          <span className="text-sm font-medium text-text-muted">{usuario?.nome}</span>
+        ) : (
+          <NavLink
+            to="/perfil"
+            className={({ isActive }) =>
+              `text-sm font-medium ${isActive ? 'text-accent' : 'text-text-muted hover:text-text'}`
+            }
+          >
+            {usuario?.nome ?? 'Perfil'}
+          </NavLink>
+        )}
         <button
           onClick={handleSair}
           className="rounded-full border border-border px-4 py-1.5 text-sm font-medium text-text transition hover:border-accent hover:text-accent"
@@ -113,9 +123,11 @@ export default function Navbar() {
               {item.label}
             </NavLink>
           ))}
-          <NavLink to="/perfil" onClick={() => setMenuAberto(false)} className="text-sm font-medium text-text-muted">
-            {usuario?.nome ?? 'Perfil'}
-          </NavLink>
+          {!perfilNoMenu && (
+            <NavLink to="/perfil" onClick={() => setMenuAberto(false)} className="text-sm font-medium text-text-muted">
+              {usuario?.nome ?? 'Perfil'}
+            </NavLink>
+          )}
           <button onClick={handleSair} className="w-fit rounded-full border border-border px-4 py-1.5 text-sm text-text">
             Sair
           </button>
