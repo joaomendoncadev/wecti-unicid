@@ -83,11 +83,14 @@ confirmar de novo.
   — não é presença (ver o recorte no item do certificado).
 
   Em produção quem manda é a variável de ambiente
-  (`CHECKIN_TOLERANCIA_ANTES_MINUTOS`): se ela estiver definida no painel
-  da hospedagem, vence o padrão do código e também o de
+  (`CHECKIN_TOLERANCIA_ANTES_MINUTOS`). A produção é uma VPS (Lightsail),
+  sem painel de hospedagem: as variáveis ficam em `/opt/wecti/.env` no
+  servidor, que o deploy **não** sobrescreve. Se a variável estiver
+  definida ali, vence o padrão do código e também o de
   `deploy/compose.prod.yml`. Ao mudar esse padrão, mude nos três lugares
   (`application.yml`, `compose.prod.yml`, `docs/producao.env.exemplo`) e
-  confira o painel.
+  confira o `/opt/wecti/.env`: hoje ele não define a variável, e o
+  container sobe com o padrão do compose.
 - **No-show**: penaliza apenas quem NÃO cancelou E NÃO fez check-in.
 - **Certificado**: exige check-in + check-out + permanência >= 75% da
   duração do evento (`data_hora_fim - data_hora_inicio`). Ver o método
