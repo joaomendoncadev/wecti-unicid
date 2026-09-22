@@ -35,12 +35,15 @@ tem (não é redirecionada num loop - ver `homeDoPerfil` no frontend e o
 comentário em `SecurityConfig.java`). Não inventar volta desse perfil sem
 confirmar de novo.
 
-- **Admin**: cadastra eventos e usuários (só Aluno ou Admin), gera os QR
-  codes de check-in/check-out, acompanha a lista de presença.
-- **Aluno**: se autocadastra (nome, RGM, email, senha - ver
-  `CadastroAlunoRequest`), escolhe os eventos em que participa, confirma
-  a própria presença escaneando o QR code, acompanha pontuação e emite
-  certificado.
+- **Admin**: cadastra eventos e usuários (só Aluno ou Admin) e edita
+  qualquer cadastro, com as travas descritas abaixo; gera os QR codes de
+  check-in/check-out; acompanha a lista de inscritos (nome e e-mail) e
+  de presença; lança pontos de gincana; é o único que vê o ranking.
+- **Aluno**: se autocadastra (nome, RGM, email, senha e curso opcional -
+  ver `CadastroAlunoRequest`) e depois pode corrigir o próprio cadastro;
+  escolhe os eventos em que participa, confirma a própria presença
+  escaneando o QR code, acompanha **a própria** pontuação (não a
+  classificação da turma) e emite certificado.
 
 ## Regras de negócio já fechadas (não inventar alternativa)
 
@@ -72,6 +75,19 @@ confirmar de novo.
   > vai mais, cancela e devolve a vaga; quem não cancelar, perde os
   > pontos. A regra vive em `PrazoInscricao` — um lugar só, usado pela
   > inscrição, pelo cancelamento e pelo que a tela mostra.
+- **Janela do QR de check-in: de 1 hora antes do início até 30 minutos
+  depois do fim** do evento (`app.checkin.tolerancia-antes-minutos` = 60,
+  `app.checkin.tolerancia-depois-minutos` = 30). Eram 30 min antes; o
+  professor pediu 1h (setembro de 2026) para poder montar a sala e
+  projetar o QR sem correria. A janela só diz **quando dá para escanear**
+  — não é presença (ver o recorte no item do certificado).
+
+  Em produção quem manda é a variável de ambiente
+  (`CHECKIN_TOLERANCIA_ANTES_MINUTOS`): se ela estiver definida no painel
+  da hospedagem, vence o padrão do código e também o de
+  `deploy/compose.prod.yml`. Ao mudar esse padrão, mude nos três lugares
+  (`application.yml`, `compose.prod.yml`, `docs/producao.env.exemplo`) e
+  confira o painel.
 - **No-show**: penaliza apenas quem NÃO cancelou E NÃO fez check-in.
 - **Certificado**: exige check-in + check-out + permanência >= 75% da
   duração do evento (`data_hora_fim - data_hora_inicio`). Ver o método
@@ -154,6 +170,15 @@ confirmar de novo.
   >
   > Se um dia for preciso separar edições do WECTI, o recorte é por
   > **data do evento**, não por uma entidade nova.
+- **Listagem de eventos em ordem cronológica, agrupada por dia e turno.**
+  A API devolve `GET /eventos` ordenado por `dataHoraInicio` crescente
+  (`EventoService.listar`) - sem isso a grade saía na ordem do banco,
+  embaralhada. A tela do aluno agrupa em blocos de "um dia, um turno"
+  (`agruparPorDiaETurno` em `frontend/src/utils/eventos.ts`): **manhã**
+  antes das 12h, **tarde** das 12h às 18h, **noite** a partir das 18h,
+  pelo horário de início. O agrupamento é por dia **e** turno para não
+  juntar a manhã de quinta com a de sexta. É só apresentação: turno não é
+  campo do evento nem coluna no banco.
 - **RGM**: identificador acadêmico do aluno, 8 dígitos, único.
   Obrigatório quando `perfil = ALUNO`; essa obrigatoriedade é validada em
   código (service), não no schema do banco (a constraint do banco só
@@ -173,8 +198,19 @@ confirmar de novo.
 - Nomes de coluna em `snake_case` no banco, `camelCase` em Java (mapeado
   via `@Column(name = "...")`).
 
-## O que NÃO está implementado neste esqueleto
+## Autenticação e autorização
 
-Autenticação JWT real (login, geração/validação de token, autorização por
-perfil) é tarefa da Fase 1 - o `SecurityConfig` atual libera tudo
-(`permitAll`) só para o esqueleto subir e o Swagger UI funcionar.
+Autenticação por JWT stateless (`security/JwtService`,
+`JwtAuthenticationFilter`). Quem pode chamar cada rota fica decidido em
+**um lugar só**: as regras `requestMatchers(...).hasRole(...)` do
+`SecurityConfig`. Toda restrição por perfil vive no backend - esconder o
+item do menu no frontend é conveniência, não segurança. Endpoint novo
+precisa de regra explícita lá.
+
+Quando a rota age sobre "a própria pessoa" (`/me/...`, `PUT
+/usuarios/me`), o id vem do token (`@AuthenticationPrincipal
+AuthenticatedUser`), nunca do caminho ou do corpo.
+
+> Uma versão anterior deste arquivo dizia que o JWT "não estava
+> implementado" e que o `SecurityConfig` liberava tudo (`permitAll`).
+> Isso era o esqueleto inicial e deixou de valer há tempos.
