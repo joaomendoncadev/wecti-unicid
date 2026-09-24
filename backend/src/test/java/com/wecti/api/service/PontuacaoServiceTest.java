@@ -39,7 +39,9 @@ import static org.mockito.Mockito.when;
  * estes testes cobrem a regra inteira, nao um cache.
  *
  * Regras cobertas:
- *  - so pontua quem cumpre o MESMO criterio do certificado (75%);
+ *  - so pontua quem cumpre o MESMO criterio do certificado (entrada e
+ *    saida lidas - a exigencia de 75% de permanencia saiu em setembro
+ *    de 2026);
  *  - quem nao cancelou e nao compareceu leva a penalidade FIXA (no-show);
  *  - inscricao cancelada nao pontua nem penaliza;
  *  - evento que ainda nao terminou nao entra na conta;
@@ -148,20 +150,23 @@ class PontuacaoServiceTest {
     }
 
     @Test
-    @DisplayName("saiu antes dos 75% nao pontua")
-    void saidaAntecipadaNaoPontua() {
+    @DisplayName("saiu cedo mas leu os dois QRs: PONTUA (nao ha mais minimo de permanencia)")
+    void saidaAntecipadaPontua() {
         Evento evento = eventoEncerrado();
         Inscricao inscricao = inscricao(evento, InscricaoStatus.ATIVA);
         Checkin checkin = Checkin.builder()
                 .inscricao(inscricao)
                 .entrada(evento.getDataHoraInicio())
-                .saida(evento.getDataHoraInicio().plusMinutes(30)) // 30min de 2h = 25%
+                .saida(evento.getDataHoraInicio().plusMinutes(30)) // 30min de 2h
                 .build();
         cenario(evento, inscricao, checkin);
 
         var resultado = pontuacaoService.calcular(ALUNO_ID);
 
-        assertThat(resultado.pontosTotal()).isZero();
+        assertThat(resultado.pontosTotal())
+                .as("na regra antiga isso era 25%% e reprovava; o professor tirou a "
+                        + "exigencia de permanencia em setembro de 2026")
+                .isEqualTo(PONTOS_DO_EVENTO);
     }
 
     @Test
@@ -201,6 +206,31 @@ class PontuacaoServiceTest {
                         + "e nao ia era quem mais perdia, sendo o desperdicio o mesmo")
                 .isEqualTo(perdaNaCara)
                 .isEqualTo(-PENALIDADE_NO_SHOW);
+    }
+
+    @Test
+    @DisplayName("com a penalidade em ZERO (o valor de hoje), faltar nao tira ponto")
+    void noShowComPenalidadeZeroNaoTiraPonto() {
+        // Os outros testes de no-show injetam 100 de proposito, para
+        // exercitar a mecanica do desconto. Este usa o valor que esta
+        // valendo de verdade desde setembro de 2026.
+        PontuacaoService semPenalidade = new PontuacaoService(eventoRepository, inscricaoRepository,
+                checkinRepository, pontuacaoExtraService, new RegraPontuacao(0, LIMITE_EVENTOS));
+
+        Evento evento = eventoEncerrado();
+        cenario(evento, inscricao(evento, InscricaoStatus.ATIVA), null);
+
+        var resultado = semPenalidade.calcular(ALUNO_ID);
+
+        assertThat(resultado.pontosTotal()).isZero();
+        assertThat(resultado.eventos()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.pontos()).isZero();
+                    assertThat(item.status())
+                            .as("o evento continua marcado como nao comparecido - o registro "
+                                    + "serve para o admin, so nao custa mais pontos")
+                            .isEqualTo("no_show");
+                });
     }
 
     @Test

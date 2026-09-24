@@ -238,11 +238,12 @@ class RankingServiceTest {
     }
 
     @Test
-    @DisplayName("presenca parcial nao pontua e nao conta como palestra concluida")
-    void presencaParcialNaoPontua() {
+    @DisplayName("presenca curta pontua e conta como concluida - igual a tela individual")
+    void presencaCurtaPontua() {
         Usuario aluno = aluno("Ana", "11111111");
         Inscricao inscricao = inscrever(aluno, InscricaoStatus.ATIVA);
-        // Entrou e saiu com 30 minutos num evento de 2h = 25%.
+        // Entrou e saiu com 30 minutos num evento de 2h: reprovava na
+        // regra dos 75%, que saiu em setembro de 2026.
         checkins.add(Checkin.builder()
                 .inscricao(inscricao)
                 .entrada(eventoEncerrado.getDataHoraInicio())
@@ -251,8 +252,8 @@ class RankingServiceTest {
 
         var item = rankingService.montar(false).itens().get(0);
 
-        assertThat(item.pontosTotal()).isZero();
-        assertThat(item.eventosConcluidos()).isZero();
+        assertThat(item.pontosTotal()).isEqualTo(PONTOS_DO_EVENTO);
+        assertThat(item.eventosConcluidos()).isEqualTo(1);
     }
 
     @Test

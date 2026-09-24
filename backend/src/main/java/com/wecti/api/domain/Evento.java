@@ -50,10 +50,13 @@ public class Evento {
     private LocalDateTime dataHoraFim;
 
     /**
-     * Pontos que o evento vale para o aluno que cumprir check-in +
-     * check-out + permanencia >= 75% da duracao. O mesmo valor e
-     * descontado em caso de no-show (ver regra de negocio no contrato
-     * de API, docs/openapi.yaml).
+     * Pontos que o evento vale para o aluno que fizer check-in E
+     * check-out. Nao ha exigencia de tempo minimo de permanencia
+     * (removida em setembro de 2026).
+     *
+     * <p>A penalidade de no-show NAO sai daqui: e um valor fixo,
+     * configurado em app.pontuacao.penalidade-no-show e hoje igual a
+     * zero (ver RegraPontuacao).
      */
     @Column(nullable = false)
     private Integer pontos;

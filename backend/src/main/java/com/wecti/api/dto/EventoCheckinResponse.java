@@ -25,8 +25,11 @@ public record EventoCheckinResponse(
         var aluno = checkin.getInscricao().getAluno();
         Float percentual = null;
         if (checkin.getSaida() != null) {
-            // Segundos, nao minutos - toMinutes() trunca a fracao e distorce
-            // muito o percentual em eventos curtos (ver Checkin.isPresencaQualificada).
+            // Informativo para o admin na lista de presenca: mostra
+            // quanto o aluno ficou, mas nao decide pontuacao nem
+            // certificado desde que a exigencia de 75% saiu (setembro
+            // de 2026). Segundos, nao minutos - toMinutes() trunca a
+            // fracao e distorce o percentual em eventos curtos.
             long duracaoEvento = Duration.between(evento.getDataHoraInicio(), evento.getDataHoraFim()).toSeconds();
             long permanencia = Duration.between(checkin.getEntrada(), checkin.getSaida()).toSeconds();
             percentual = duracaoEvento > 0 ? (float) (100.0 * permanencia / duracaoEvento) : 0f;

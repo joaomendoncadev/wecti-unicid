@@ -14,7 +14,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -40,51 +39,25 @@ public class Checkin {
     private LocalDateTime saida;
 
     /**
-     * Regra do certificado/pontuacao: precisa de check-out registrado e
-     * permanencia >= 75% da duracao do evento. Calculado em runtime, nao
+     * Regra do certificado/pontuacao: <b>os dois QR codes lidos</b>.
+     * Quem marcou a entrada e a saida cumpriu o criterio; nao ha exigencia
+     * de tempo minimo de permanencia. Calculado em runtime, nao
      * persistido como coluna.
      *
-     * <p><b>So conta o tempo DENTRO do horario do evento.</b> O check-in
-     * abre uma hora antes do inicio e fecha meia hora depois do fim
-     * (app.checkin.tolerancia-*), entao entrada e saida podem cair fora
-     * da palestra - e o tempo de fora nao e presenca. Sem esse recorte,
-     * quem chegasse na metade da palestra e so marcasse a saida no
-     * corredor, depois do fim, somava os dois pedacos de folga e passava
-     * nos 75% sem ter assistido; e quem escaneasse o QR uma hora antes
-     * comecava a contar presenca com a sala ainda vazia.
+     * <p>Como {@code entrada} e obrigatoria (a saida so e registrada em
+     * cima de um check-in existente - ver CheckinService), o unico teste
+     * que sobra e se houve check-out.
      *
-     * <p>Por isso a conta e a <b>intersecao</b> entre [entrada, saida] e
-     * [inicioEvento, fimEvento]. Quem ficou do comeco ao fim nao e
-     * afetado: para ele a intersecao e a palestra inteira.
-     *
-     * <p>Usa segundos (toSeconds()), nao minutos (toMinutes()) -
-     * toMinutes() TRUNCA a fracao de minuto, o que da um erro enorme em
-     * eventos curtos: um aluno com 3min53s de permanencia num evento de
-     * 5min tem 77,7% de presenca de verdade (233s / 300s), mas
-     * toMinutes() truncava pra "3 min de 5 min" = 60%, reprovando
-     * presenca que deveria passar. Em eventos longos o erro de
-     * toMinutes() e desprezivel (no maximo 59s de diferenca), mas nao ha
-     * motivo pra manter a imprecisao.
+     * <p><b>Ate setembro de 2026 exigia tambem permanencia >= 75% da
+     * duracao do evento</b>, contada pela intersecao entre
+     * [entrada, saida] e o horario do evento. O professor tirou a regra:
+     * a presenca passou a ser comprovada so pela leitura dos dois QRs.
+     * O percentual continua calculado e exibido na lista de presenca
+     * (ver CheckinResponse.percentualPresenca), mas agora e so
+     * informativo para o admin - nao decide pontuacao nem certificado.
      */
     @Transient
-    public boolean isPresencaQualificada(LocalDateTime inicioEvento, LocalDateTime fimEvento) {
-        if (saida == null) {
-            return false;
-        }
-        long duracaoEvento = Duration.between(inicioEvento, fimEvento).toSeconds();
-        if (duracaoEvento <= 0) {
-            return false;
-        }
-
-        LocalDateTime inicioContado = entrada.isBefore(inicioEvento) ? inicioEvento : entrada;
-        LocalDateTime fimContado = saida.isAfter(fimEvento) ? fimEvento : saida;
-        if (!fimContado.isAfter(inicioContado)) {
-            // Esteve so fora da janela do evento (ex.: entrou e saiu antes
-            // de comecar) - permanencia zero, e nao um numero negativo.
-            return false;
-        }
-
-        long permanencia = Duration.between(inicioContado, fimContado).toSeconds();
-        return ((double) permanencia / duracaoEvento) >= 0.75;
+    public boolean isPresencaQualificada() {
+        return saida != null;
     }
 }

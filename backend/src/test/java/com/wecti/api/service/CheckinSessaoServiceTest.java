@@ -234,6 +234,87 @@ class CheckinSessaoServiceTest {
         verify(checkinService, never()).registrarEntrada(any());
     }
 
+    // ---------- palestra que passa do horario ----------
+    //
+    // Pergunta do professor (setembro de 2026): "a palestra e das 9h as
+    // 10h, o palestrante terminou 10h30 - como fica o check-out?". Os
+    // testes abaixo respondem com o relogio em pontos diferentes depois
+    // das 10h. A folga depois do fim e TOLERANCIA_DEPOIS (30 min, o mesmo
+    // valor padrao de producao).
+
+    /** Palestra "das 9h as 10h", vista com o relogio marcando 10h + N min. */
+    private Evento palestraDas9As10(long minutosDepoisDoFim) {
+        LocalDateTime fim = LocalDateTime.now().minusMinutes(minutosDepoisDoFim);
+        return evento(fim.minusHours(1), fim);
+    }
+
+    /** QR de saida gerado pelo admin enquanto a palestra ainda rolava
+     *  (10h15), como aconteceria na pratica. A validade dele e sempre
+     *  fim + folga, nao importa quando foi gerado. */
+    private SessaoCheckin qrDeSaidaGeradoAs10h15(Evento evento) {
+        when(eventoRepository.findById(eventoId)).thenReturn(Optional.of(evento));
+        SessaoCheckin sessao = SessaoCheckin.builder()
+                .id(UUID.randomUUID())
+                .evento(evento)
+                .tipo(TipoSessaoCheckin.SAIDA)
+                .segredo(codigoRotativo.gerarSegredo())
+                .criadaEm(evento.getDataHoraFim().plusMinutes(15))
+                .expiraEm(evento.getDataHoraFim().plusMinutes(TOLERANCIA_DEPOIS))
+                .build();
+        when(sessaoRepository.findById(sessao.getId())).thenReturn(Optional.of(sessao));
+        return sessao;
+    }
+
+    @Test
+    @DisplayName("palestra das 9h-10h que acabou 10h30: saida as 10h25 e aceita")
+    void atrasoCheckoutDentroDaFolga() {
+        SessaoCheckin sessao = qrDeSaidaGeradoAs10h15(palestraDas9As10(25));
+        alunoInscrito(InscricaoStatus.ATIVA);
+
+        service.confirmar(sessao.getId(), alunoId, codigoRotativo.codigoAtual(sessao));
+
+        verify(checkinService).registrarSaida(any());
+    }
+
+    @Test
+    @DisplayName("palestra das 9h-10h que acabou 10h30: saida as 10h29 ainda e aceita")
+    void atrasoCheckoutNoLimite() {
+        SessaoCheckin sessao = qrDeSaidaGeradoAs10h15(palestraDas9As10(29));
+        alunoInscrito(InscricaoStatus.ATIVA);
+
+        service.confirmar(sessao.getId(), alunoId, codigoRotativo.codigoAtual(sessao));
+
+        verify(checkinService).registrarSaida(any());
+    }
+
+    @Test
+    @DisplayName("palestra das 9h-10h que acabou 10h30: saida as 10h31 e RECUSADA")
+    void atrasoCheckoutForaDaFolga() {
+        SessaoCheckin sessao = qrDeSaidaGeradoAs10h15(palestraDas9As10(31));
+        alunoInscrito(InscricaoStatus.ATIVA);
+
+        assertThatThrownBy(() -> service.confirmar(sessao.getId(), alunoId, codigoRotativo.codigoAtual(sessao)))
+                .as("a sessao vale ate 10h + 30 min de folga; quem sai pela porta "
+                        + "depois disso nao consegue mais marcar a saida")
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("fechou");
+
+        verify(checkinService, never()).registrarSaida(any());
+    }
+
+    @Test
+    @DisplayName("palestra das 9h-10h que acabou 10h30: gerar o QR de saida as 10h35 e recusado")
+    void atrasoAdminNaoGeraQrDepoisDaFolga() {
+        Evento evento = palestraDas9As10(35);
+        when(eventoRepository.findById(eventoId)).thenReturn(Optional.of(evento));
+
+        assertThatThrownBy(() -> service.criar(eventoId, TipoSessaoCheckin.SAIDA))
+                .as("se o admin deixar para projetar o QR de saida so no fim da "
+                        + "palestra atrasada, ja nao da mais")
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("fechou");
+    }
+
     // ---------- regras que ja existiam, pra nao regredirem ----------
 
     @Test

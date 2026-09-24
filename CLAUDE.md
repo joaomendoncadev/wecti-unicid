@@ -55,13 +55,11 @@ confirmar de novo.
   A folga de 15 minutos é para quem chega atrasado: sem ela, quem aparece
   5 minutos depois do começo não se inscreve, logo não faz check-in, logo
   não pontua — ficaria de fora de uma palestra em que está presente.
-  Configurável em `app.inscricao.tolerancia-apos-inicio-minutos`, mas
-  **não passe de 30 minutos**: a pontuação exige 75% de permanência, e
-  numa palestra de 2 horas quem entra 30 min atrasado fica com exatamente
-  90 min de 120 — 30 é o limite. Uma folga maior deixaria o aluno se
-  inscrever numa palestra em que já não tem como alcançar a presença
-  mínima, o que é pior do que não deixar inscrever: ele acha que vai
-  pontuar e não pontua.
+  Configurável em `app.inscricao.tolerancia-apos-inicio-minutos`. O
+  limite útil é a própria janela de check-in, que fecha em
+  `fim do evento + app.checkin.tolerancia-depois-minutos`: uma folga
+  maior que isso deixaria o aluno se inscrever numa palestra em que já
+  não consegue marcar presença — ele acha que vai pontuar e não pontua.
 
   > Antes o cancelamento era "até 1 dia antes" e a inscrição ia até o
   > **fim** do evento — dois prazos diferentes, e nenhum deles fazia
@@ -79,8 +77,9 @@ confirmar de novo.
   depois do fim** do evento (`app.checkin.tolerancia-antes-minutos` = 60,
   `app.checkin.tolerancia-depois-minutos` = 30). Eram 30 min antes; o
   professor pediu 1h (setembro de 2026) para poder montar a sala e
-  projetar o QR sem correria. A janela só diz **quando dá para escanear**
-  — não é presença (ver o recorte no item do certificado).
+  projetar o QR sem correria. A janela só diz **quando dá para
+  escanear**; a leitura dos dois QR codes é o que comprova presença
+  (ver Certificado).
 
   Em produção quem manda é a variável de ambiente
   (`CHECKIN_TOLERANCIA_ANTES_MINUTOS`). A produção é uma VPS (Lightsail),
@@ -91,38 +90,43 @@ confirmar de novo.
   (`application.yml`, `compose.prod.yml`, `docs/producao.env.exemplo`) e
   confira o `/opt/wecti/.env`: hoje ele não define a variável, e o
   container sobe com o padrão do compose.
-- **No-show**: penaliza apenas quem NÃO cancelou E NÃO fez check-in.
-- **Certificado**: exige check-in + check-out + permanência >= 75% da
-  duração do evento (`data_hora_fim - data_hora_inicio`). Ver o método
-  `Checkin.isPresencaQualificada(...)`.
+- **No-show**: marca quem NÃO cancelou E NÃO fez check-in. Hoje vale 0
+  pontos (ver Penalidade abaixo) — continua registrado porque é o que
+  mostra quem reservou vaga e não apareceu.
+- **Certificado**: exige **check-in + check-out**, e nada mais. Ver
+  `Checkin.isPresencaQualificada()`.
 
-  **Só conta o tempo dentro do horário do evento.** O check-in abre 1h
-  antes e fecha 30min depois (`app.checkin.tolerancia-*`), então entrada
-  e saída podem cair fora da palestra — e essa folga não é presença. A
-  conta é a **interseção** entre `[entrada, saida]` e
-  `[dataHoraInicio, dataHoraFim]`. Sem o recorte, quem chegasse na metade
-  e só marcasse a saída no corredor somava os dois pedaços de folga e
-  passava nos 75% sem ter assistido. Quem fica do começo ao fim não é
-  afetado.
+  > **Não há mais exigência de permanência mínima.** Até setembro de 2026
+  > pedia 75% da duração do evento, contados pela interseção entre
+  > `[entrada, saida]` e o horário da palestra. O professor tirou a
+  > regra: a leitura dos dois QR codes passou a ser a prova de presença.
+  > O percentual continua calculado e aparece na lista de presença do
+  > admin (`percentual_presenca`), mas é só informativo — não decide
+  > pontuação nem certificado.
 - **Pontuação**: cada evento tem um valor fixo de pontos
   (`Evento.pontos`), definido no cadastro do evento. Só conta para o
   aluno quando ele cumpre o mesmo critério do certificado - não basta o
   check-in.
-- **Penalidade**: o no-show desconta um valor **fixo**, configurável em
-  `app.pontuacao.penalidade-no-show` (padrão **100**) - e não os pontos
-  que aquele evento valeria.
+- **Penalidade de no-show: ZERO.** Faltar não tira ponto nenhum
+  (`app.pontuacao.penalidade-no-show`, padrão **0**). O evento continua
+  aparecendo como "não compareceu" na tela do aluno e na do admin — o
+  registro serve para saber quem reservou vaga e não foi —, só que
+  valendo 0.
 
-  > Era assim até setembro de 2026: faltar numa palestra de 50 pontos
-  > custava 50, e numa de 300 custava 300. Quem pegava vaga na palestra
-  > mais concorrida e não aparecia era quem mais perdia, embora o
-  > desperdício (uma vaga vazia) seja o mesmo nos dois casos.
+  > Esta regra já mudou duas vezes. Era "perde os pontos daquela
+  > palestra"; virou "perde 100 fixos" (para que faltar custasse o mesmo
+  > em qualquer palestra); e o professor zerou em setembro de 2026. A
+  > configuração continua existindo justamente por isso: se voltar a
+  > valer, basta trocar o número, sem reescrever código.
 - **Teto de pontos de evento**: o aluno ganha no máximo
   `app.pontuacao.limite-eventos` (padrão **2000**) em palestras.
 
   O teto apara **apenas os ganhos**; a penalidade de no-show é descontada
-  **depois** dele. Nessa ordem, quem já passou do teto continua sentindo a
-  falta - se o teto fosse aplicado sobre o saldo, a penalidade sumiria
-  junto com o excedente. Exemplo: 2300 ganhos + 1 falta →
+  **depois** dele. Com a penalidade em zero isso não muda nada hoje —
+  `min(ganhos, 2000)` e pronto —, mas a ordem está assim de propósito: se
+  a penalidade voltar a valer, quem já passou do teto continua sentindo a
+  falta. Aplicada sobre o saldo, ela sumiria junto com o excedente
+  aparado. Exemplo com penalidade 100: 2300 ganhos + 1 falta →
   `min(2300, 2000) - 100 = 1900`.
 
   **Gincana fica fora do teto** (é premiação lançada à mão pelo admin,

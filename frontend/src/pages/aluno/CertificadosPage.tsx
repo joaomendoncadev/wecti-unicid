@@ -40,7 +40,7 @@ export default function CertificadosPage() {
       {!carregando && !erro && disponiveis.length === 0 && (
         <EmptyState
           titulo="Nenhum certificado disponível"
-          descricao="Certificados aparecem aqui após check-in, check-out e permanência mínima de 75% no evento."
+          descricao="Certificados aparecem aqui depois que você lê o QR code de entrada e o de saída do evento."
           icone="🎓"
         />
       )}

@@ -46,9 +46,9 @@ public class CertificadoService {
                 .orElseThrow(() -> new RegraNegocioException(
                         "Criterios de presenca ainda nao cumpridos (check-in/check-out pendentes)"));
 
-        if (!checkin.isPresencaQualificada(evento.getDataHoraInicio(), evento.getDataHoraFim())) {
+        if (!checkin.isPresencaQualificada()) {
             throw new RegraNegocioException(
-                    "Criterios de presenca ainda nao cumpridos (permanencia minima de 75% nao atingida)");
+                    "Criterios de presenca ainda nao cumpridos (falta o check-out)");
         }
 
         Certificado certificado = obterOuCriar(inscricao);
@@ -121,10 +121,10 @@ public class CertificadoService {
 
     /**
      * Carga horaria calculada da duracao do proprio evento, em vez de um
-     * campo separado no cadastro: e a mesma duracao que ja decide a regra
-     * dos 75% de permanencia: um campo manual poderia divergir do criterio
-     * que concede o certificado (ex.: evento cadastrado das 19h as 21h,
-     * mas com "4h" digitado na mao).
+     * campo separado no cadastro: um campo manual poderia divergir do
+     * horario real da palestra (ex.: evento cadastrado das 19h as 21h,
+     * mas com "4h" digitado na mao) e o certificado sairia com uma
+     * carga que o evento nao teve.
      */
     private String cargaHoraria(Evento evento) {
         Duration duracao = Duration.between(evento.getDataHoraInicio(), evento.getDataHoraFim());

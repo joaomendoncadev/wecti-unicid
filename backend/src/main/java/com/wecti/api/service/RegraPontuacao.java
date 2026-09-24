@@ -93,11 +93,11 @@ public class RegraPontuacao {
         if (checkin == null) {
             return new Resultado(-penalidadeNoShow, NO_SHOW);
         }
-        if (checkin.isPresencaQualificada(evento.getDataHoraInicio(), evento.getDataHoraFim())) {
+        if (checkin.isPresencaQualificada()) {
             return new Resultado(evento.getPontos(), CONCLUIDO);
         }
-        // Compareceu, mas nao ficou os 75% - nao ganha os pontos e
-        // tambem nao e penalizado como quem faltou.
+        // Marcou a entrada e esqueceu a saida: nao ganha os pontos, mas
+        // tambem nao e tratado como quem faltou - ele esteve la.
         return new Resultado(0, CONCLUIDO);
     }
 

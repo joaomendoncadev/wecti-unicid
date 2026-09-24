@@ -58,9 +58,19 @@ public class NoShowSchedulerJob {
                 if (checkinRepository.findByInscricaoId(inscricao.getId()).isPresent()) {
                     continue;
                 }
-                log.warn("No-show: aluno {} perdeu {} pontos no evento '{}' ({})",
-                        inscricao.getAluno().getEmail(), regraPontuacao.penalidadeNoShow(),
-                        evento.getTitulo(), evento.getId());
+                // A penalidade hoje e zero, entao dizer "perdeu 0 pontos"
+                // seria ruido. O registro continua util - e o rastro de
+                // quem reservou vaga e nao apareceu - e o valor volta a
+                // aparecer se a penalidade for reativada na configuracao.
+                int penalidade = regraPontuacao.penalidadeNoShow();
+                if (penalidade == 0) {
+                    log.warn("No-show: aluno {} nao compareceu ao evento '{}' ({})",
+                            inscricao.getAluno().getEmail(), evento.getTitulo(), evento.getId());
+                } else {
+                    log.warn("No-show: aluno {} perdeu {} pontos no evento '{}' ({})",
+                            inscricao.getAluno().getEmail(), penalidade,
+                            evento.getTitulo(), evento.getId());
+                }
             }
         }
     }

@@ -46,12 +46,11 @@ app:
     # faz check-in, logo nao pontua - ficaria de fora de uma palestra em
     # que esta presente.
     #
-    # NAO passe de 30 minutos: a pontuacao exige 75% de permanencia, e
-    # numa palestra de 2 horas quem entra 30 min atrasado fica com
-    # exatamente 90 min de 120 - ou seja, 30 min ja e o limite. Uma folga
-    # maior deixaria o aluno se inscrever numa palestra em que ele nao
-    # tem mais como alcancar a presenca minima, o que e pior do que nao
-    # deixar inscrever: ele acha que vai pontuar e nao pontua.
+    # O limite util e a propria janela de check-in: ela fecha em
+    # (fim do evento + app.checkin.tolerancia-depois-minutos). Uma folga
+    # de inscricao maior que isso deixaria o aluno se inscrever numa
+    # palestra em que ele ja nao consegue marcar presenca - ele acha que
+    # vai pontuar e nao pontua.
     tolerancia-apos-inicio-minutos: ${INSCRICAO_TOLERANCIA_MINUTOS:15}
   checkin:
     # De quanto em quanto tempo o codigo embutido no QR de check-in muda
@@ -71,19 +70,23 @@ app:
     # Antes: a partir de quando o admin ja consegue gerar e projetar o QR.
     # Uma hora, a pedido do professor (setembro de 2026) - eram 30 min, e
     # isso obrigava a montar a sala e so entao liberar o QR, em cima da
-    # hora. Aumentar so estende o inicio da janela; nao afeta quem ja
-    # esta dentro dela nem a regra dos 75% de permanencia, que e contada
-    # pelo horario do evento, nao pelo do check-in.
+    # hora. Aumentar so estende o inicio da janela.
     tolerancia-antes-minutos: ${CHECKIN_TOLERANCIA_ANTES_MINUTOS:60}
     # Depois: tempo pra quem esta saindo fazer o check-out na porta.
     tolerancia-depois-minutos: ${CHECKIN_TOLERANCIA_DEPOIS_MINUTOS:30}
   pontuacao:
-    # Quanto custa reservar vaga e nao aparecer (no-show). Valor fixo, e
-    # nao os pontos daquela palestra: antes, faltar numa palestra de 50
-    # pontos custava 50 e faltar numa de 300 custava 300 - quem pegava
-    # vaga na palestra mais concorrida e nao ia era quem mais perdia,
-    # quando o problema (vaga desperdicada) e o mesmo nos dois casos.
-    penalidade-no-show: ${PONTUACAO_PENALIDADE_NO_SHOW:100}
+    # Quanto custa reservar vaga e nao aparecer (no-show).
+    #
+    # ZERO por decisao do professor (setembro de 2026): faltar nao tira
+    # mais ponto nenhum. O evento continua aparecendo na tela do aluno
+    # marcado como "nao compareceu", so que valendo 0 - o registro
+    # continua servindo para o admin ver quem reservou vaga e nao foi.
+    #
+    # A configuracao continua existindo porque essa regra ja mudou duas
+    # vezes: era "perde os pontos daquela palestra", virou "perde 100
+    # fixos" e agora e zero. Se voltar a valer, basta trocar o numero -
+    # nao ha codigo a reescrever.
+    penalidade-no-show: ${PONTUACAO_PENALIDADE_NO_SHOW:0}
     # Teto de pontos que da para GANHAR em palestras. O teto apara so os
     # ganhos; a penalidade de no-show e descontada depois dele, senao
     # quem ja estivesse acima do teto faltaria de graca.

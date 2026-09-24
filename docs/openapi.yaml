@@ -5,11 +5,12 @@
 #   - Inscricao e cancelamento fecham juntos, 15 min APOS o inicio do
 #     evento (folga para quem chega atrasado - ver PrazoInscricao).
 #     Antes: cancelamento ate 1 dia antes, inscricao ate o fim do evento.
-#   - Penalizacao (no-show) se o aluno NAO cancelou E NAO fez check-in.
-#   - Certificado exige check-in + check-out + permanencia >= 75% da duracao
-#     do evento (calculada a partir de data_hora_inicio/data_hora_fim).
-#     So conta o tempo DENTRO do horario do evento: o check-in abre 1h
-#     antes e fecha 30min depois, e essa folga nao e presenca.
+#   - Marcacao de no-show se o aluno NAO cancelou E NAO fez check-in (hoje
+#     sem desconto de pontos - ver a penalidade mais abaixo).
+#   - Certificado exige check-in + check-out, e nada mais. NAO ha exigencia
+#     de permanencia minima: ate setembro de 2026 pedia 75% da duracao do
+#     evento, e o professor tirou a regra. O percentual continua sendo
+#     calculado e devolvido (percentual_presenca), mas e so informativo.
 #   - Pontos do evento sao definidos no proprio cadastro do evento.
 #   - Nao ha recorte por semestre: a pontuacao e a do aluno no WECTI,
 #     somando todas as palestras mais os pontos de gincana. A entidade
@@ -22,9 +23,11 @@
 #     check-in/check-out pelo proprio site e o aluno confirma a propria
 #     presenca escaneando com a camera do celular (Android ou iOS).
 #   - Pontos do evento so contam para o aluno quando os criterios do
-#     certificado sao cumpridos (check-in + check-out + permanencia >= 75%).
-#   - Penalidade de no-show: valor FIXO (app.pontuacao.penalidade-no-show,
-#     padrao 100), e nao os pontos daquele evento.
+#     certificado sao cumpridos (check-in + check-out).
+#   - Penalidade de no-show: ZERO (app.pontuacao.penalidade-no-show, padrao
+#     0). Faltar nao tira ponto; o evento so fica marcado como no_show.
+#     A regra ja foi "perde os pontos do evento" e "perde 100 fixos" -
+#     por isso o valor continua configuravel.
 #   - Teto de pontos ganhos em palestras (app.pontuacao.limite-eventos,
 #     padrao 2000). O teto apara so os ganhos; a penalidade de no-show e
 #     descontada DEPOIS dele. Gincana fica fora do teto.
@@ -883,13 +886,10 @@ paths:
       tags: [Certificados]
       summary: Emite ou baixa o certificado do evento
       description: >
-        Só libera o PDF se a inscrição tiver check-in, check-out e
-        permanência de pelo menos 75% da duração do evento.
-
-
-        A permanência é a interseção entre [entrada, saída] e o horário
-        do evento: o tempo de folga do check-in (1h antes, 30min depois)
-        não conta como presença.
+        Só libera o PDF se a inscrição tiver check-in E check-out. Não há
+        exigência de tempo mínimo de permanência - ler os dois QR codes
+        é a prova de presença (regra anterior, de 75% da duração, saiu em
+        setembro de 2026).
 
         O PDF traz nome do aluno, RGM, carga horária (calculada da
         duração do evento), data de realização e o título do evento,
@@ -1262,7 +1262,7 @@ components:
           type: integer
           description: >
             Pontos que o evento vale para quem cumpre os critérios de
-            presença (check-in + check-out + 75% de permanência).
+            presença (check-in + check-out).
         capacidade:
           type: integer
           nullable: true

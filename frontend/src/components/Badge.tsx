@@ -3,7 +3,10 @@ const ESTILOS: Record<string, string> = {
   concluido: 'bg-accent/10 text-accent border-accent/30',
   cancelada: 'bg-white/5 text-text-muted border-border',
   cancelado: 'bg-white/5 text-text-muted border-border',
-  no_show: 'bg-red-500/10 text-red-400 border-red-500/30',
+  // Neutro, e nao vermelho: desde setembro de 2026 faltar nao tira
+  // ponto nenhum, entao alarmar o aluno com cor de erro seria mentir
+  // sobre a consequencia.
+  no_show: 'bg-white/5 text-text-muted border-border',
 };
 
 const LABELS: Record<string, string> = {

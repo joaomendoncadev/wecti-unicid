@@ -212,10 +212,7 @@ public class InscricaoService {
     public InscricaoResponse montarResposta(Inscricao inscricao) {
         Optional<Checkin> checkin = checkinRepository.findByInscricaoId(inscricao.getId());
         CheckinResponse checkinResponse = checkin.map(c -> CheckinResponse.de(c, inscricao.getEvento())).orElse(null);
-        boolean certificadoDisponivel = checkin
-                .map(c -> c.isPresencaQualificada(inscricao.getEvento().getDataHoraInicio(),
-                        inscricao.getEvento().getDataHoraFim()))
-                .orElse(false);
+        boolean certificadoDisponivel = checkin.map(Checkin::isPresencaQualificada).orElse(false);
         return InscricaoResponse.de(inscricao, checkinResponse, certificadoDisponivel);
     }
 

@@ -15,9 +15,9 @@ import java.util.TimeZone;
  * <p><b>Por que isso importa aqui mais do que no projeto medio.</b>
  * Praticamente toda regra deste sistema e um horario comparado com "o
  * agora": se a inscricao ainda esta aberta, se a janela de check-in
- * abriu, se o evento terminou (e portanto vale ponto ou no-show), se o
- * aluno ficou 75% do tempo. Todas usam {@code LocalDateTime.now()}, que
- * le o fuso <b>padrao da JVM</b>.
+ * abriu, se o evento terminou (e portanto vale ponto ou no-show).
+ * Todas usam {@code LocalDateTime.now()}, que le o fuso <b>padrao da
+ * JVM</b>.
  *
  * <p>O {@code serverTimezone} na URL do JDBC nao resolve isso: ele so diz
  * ao driver como converter datas na conversa com o MySQL. Numa hospedagem
