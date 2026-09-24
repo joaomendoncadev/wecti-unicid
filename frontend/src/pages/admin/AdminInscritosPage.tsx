@@ -10,12 +10,13 @@ import { listarInscritosComContato } from '../../services/inscricoes';
 import { extrairMensagemErro } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { formatarDataHora } from '../../utils/data';
+import { baixarCsv } from '../../utils/arquivo';
 import type { InscritoEvento } from '../../types';
 
 /**
  * Lista de contato dos inscritos num evento - nome e e-mail de quem está
  * na turma, para a organização avisar mudança de sala, mandar material ou
- * cobrar presença.
+ * cobrar presença. Sai também em CSV, com as mesmas colunas da tabela.
  *
  * <p>Mostra só quem está inscrito <b>agora</b>: quem cancelou devolveu a
  * vaga e sai da lista no instante do cancelamento (a API filtra por
@@ -81,6 +82,33 @@ export default function AdminInscritosPage() {
     () => eventos.find((e) => e.id === eventoId),
     [eventos, eventoId],
   );
+
+  /**
+   * As mesmas colunas da tabela, num arquivo que abre no Excel. Baixar
+   * em vez de copiar porque a lista costuma virar anexo de e-mail ou
+   * planilha de controle da organizacao - copiar so serviria para colar
+   * na hora.
+   *
+   * O nome do arquivo leva o titulo da atividade e a data: o admin baixa
+   * a lista de varios eventos, e "inscritos.csv (3)" na pasta de
+   * downloads nao diz de quem e cada uma.
+   */
+  const baixarLista = () => {
+    const titulo = (eventoSelecionado?.titulo ?? 'atividade')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase();
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    baixarCsv(
+      `inscritos-${titulo}-${hoje}.csv`,
+      ['Aluno', 'E-mail', 'RGM', 'Inscrito em'],
+      inscritos.map((i) => [i.nome, i.email, i.rgm, formatarDataHora(i.inscrito_em)]),
+    );
+    notificarSucesso(`${inscritos.length} inscrito${inscritos.length === 1 ? '' : 's'} no arquivo.`);
+  };
 
   const copiarEmails = async () => {
     const lista = inscritos.map((i) => i.email).join(', ');
@@ -151,9 +179,12 @@ export default function AdminInscritosPage() {
               </p>
             </div>
             {!carregando && inscritos.length > 0 && (
-              <Button variante="outline" onClick={copiarEmails}>
-                Copiar e-mails
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button variante="outline" onClick={copiarEmails}>
+                  Copiar e-mails
+                </Button>
+                <Button onClick={baixarLista}>Baixar lista (CSV)</Button>
+              </div>
             )}
           </div>
 
