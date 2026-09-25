@@ -13,10 +13,17 @@ import java.time.LocalDateTime;
  *
  * @param pngBase64      imagem do QR, pronta pra um {@code src="data:image/png;base64,..."}
  * @param codigoExpiraEm quando este QR deixa de ser o exibido - a tela busca o proximo aqui
+ * @param janelaSegundos duracao de uma janela inteira. Vai junto porque a
+ *                       barra de tempo da tela precisa de um denominador
+ *                       fixo: as janelas sao alinhadas ao relogio, entao a
+ *                       primeira exibicao costuma ser um pedaco de janela
+ *                       (ex.: 40s de 900s) e sem isto a barra comecaria
+ *                       cheia e despencaria, mentindo sobre o tempo
  * @param sessaoExpiraEm fim da janela de check-in do evento; passou disso, nao adianta gerar outro
  */
 public record QrCodeSessaoResponse(
         String pngBase64,
         LocalDateTime codigoExpiraEm,
+        long janelaSegundos,
         LocalDateTime sessaoExpiraEm) {
 }

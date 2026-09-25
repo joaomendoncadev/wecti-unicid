@@ -200,7 +200,7 @@ certa, e funciona por `curl`.
 | `SPRINGDOC_ENABLED` | `false` | Deixa `/docs` e `/api-docs` fora do ar |
 | `RATE_LIMIT_MAX_FALHAS` | `10` | Tentativas de login erradas antes de bloquear o IP |
 | `RATE_LIMIT_JANELA_MINUTOS` | `15` | Duração do bloqueio |
-| `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `60` | De quanto em quanto tempo o QR se renova |
+| `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `900` | De quanto em quanto tempo o QR se renova (15 min) |
 | `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `60` | Quanto antes do evento o admin já consegue gerar e projetar o QR |
 | `CHECKIN_TOLERANCIA_DEPOIS_MINUTOS` | `30` | Quanto depois do fim o check-out ainda vale |
 | `INSCRICAO_TOLERANCIA_MINUTOS` | `15` | Folga para se inscrever depois do início |
@@ -210,20 +210,28 @@ palestra a turma inteira acessa pelo mesmo Wi-Fi e sai com o mesmo IP público �
 se acertos contassem, os alunos bloqueariam uns aos outros. Quem digita a senha
 certa nunca entra na conta.
 
-**Sobre a janela do QR:** o QR fica projetado e é o mesmo para a sala inteira,
-então uma foto da tela mandada no grupo serviria para quem não veio. O link
-carrega um código que vale por uma janela curta, e a tela do admin busca o
-próximo sozinha. A janela anterior também é aceita, então na prática o código
-vale entre uma e duas janelas. **Não deixe abaixo de ~30 s** — aluno com
-internet ruim começa a perder check-in legítimo.
+**Sobre a janela do QR:** o QR fica projetado e é o mesmo para a sala inteira. O
+link carrega um código que vale por uma janela de tempo, e a tela do admin busca
+o próximo sozinha. Como a janela anterior também é aceita, o código vale na
+prática de uma a duas janelas.
+
+**A janela é de 15 minutos** (setembro de 2026, a pedido do professor). Eram 60
+segundos, e quem precisava fazer login entre fotografar a tela e confirmar levava
+"Este QR code já mudou" num check-in legítimo. Rotacionar deixou de ser defesa
+contra compartilhamento — o professor decidiu não controlar quem repassa foto do
+QR; quem fecha a porta é a sessão, que expira 30 minutos depois do fim da
+palestra.
+
+A tela do admin **precisa ficar aberta** para renovar o QR: fechada, o QR
+projetado congela e para de valer ao fim da janela seguinte.
 
 **Sobre a folga de inscrição:** existe para quem chega atrasado. Sem ela, quem
 aparece 5 minutos depois do começo não se inscreve, logo não faz check-in, logo
-não pontua — ficaria de fora de uma palestra em que está presente. **Não passe
-de 30 minutos:** a pontuação exige 75% de permanência, e numa palestra de 2 horas
-quem entra 30 min atrasado fica com exatamente 90 de 120 min. Uma folga maior
-deixaria o aluno se inscrever numa palestra em que já não alcança a presença
-mínima — ele acha que vai pontuar e não pontua.
+não pontua — ficaria de fora de uma palestra em que está presente. O limite útil
+é a janela de check-in, que fecha em `fim do evento +
+CHECKIN_TOLERANCIA_DEPOIS_MINUTOS`: uma folga maior deixaria o aluno se
+inscrever numa palestra em que já não consegue marcar presença — ele acha que
+vai pontuar e não pontua.
 
 ---
 

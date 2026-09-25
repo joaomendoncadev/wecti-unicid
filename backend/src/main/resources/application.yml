@@ -54,15 +54,22 @@ app:
     tolerancia-apos-inicio-minutos: ${INSCRICAO_TOLERANCIA_MINUTOS:15}
   checkin:
     # De quanto em quanto tempo o codigo embutido no QR de check-in muda
-    # (ver CodigoRotativoCheckin). O QR e o mesmo pra sala inteira, entao
-    # sem rotacao bastava um aluno fotografar a tela e mandar no grupo pra
-    # quem nao veio marcar presenca de casa.
+    # (ver CodigoRotativoCheckin).
     #
-    # E um equilibrio: menor = print compartilhado vence mais rapido;
-    # maior = mais folga pra quem escaneou e ainda precisou fazer login
-    # antes de confirmar. A janela anterior tambem e aceita, entao o
-    # codigo vale na pratica entre 1 e 2 janelas.
-    janela-codigo-segundos: ${CHECKIN_JANELA_CODIGO_SEGUNDOS:60}
+    # 15 MINUTOS, a pedido do professor (setembro de 2026). Eram 60s, e
+    # com isso o aluno tinha 1 minuto entre fotografar a tela e
+    # confirmar - quem precisava fazer login no meio levava
+    # "Este QR code ja mudou" num check-in legitimo.
+    #
+    # A janela ANTERIOR tambem e aceita, entao o codigo vale na pratica
+    # entre 1 e 2 janelas: com 900s, no minimo 15 e no maximo 30
+    # minutos. O minimo garantido e o que o professor pediu.
+    #
+    # Ele decidiu nao tentar impedir que os alunos repassem foto do QR
+    # ("nao temos como controlar isso"), entao a rotacao deixou de ser
+    # defesa e virou so higiene: um link vazado morre em ate meia hora,
+    # e a sessao inteira morre 30 min depois do fim da palestra.
+    janela-codigo-segundos: ${CHECKIN_JANELA_CODIGO_SEGUNDOS:900}
     # A sessao de check-in so aceita confirmacao dentro do horario do
     # proprio evento, mais estas folgas. Antes valia "criacao + 6 horas",
     # o que deixava um QR gerado de manha ainda funcionando a tarde.

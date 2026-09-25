@@ -176,4 +176,50 @@ class CodigoRotativoCheckinTest {
                 .as("a tela precisa buscar o proximo QR na virada, nao 60s depois de perguntar")
                 .isEqualTo(T0.plusSeconds(JANELA_SEGUNDOS).atZone(FUSO).toLocalDateTime());
     }
+
+    // ---------- os 15 minutos pedidos pelo professor ----------
+
+    /** 900s = 15 min, o valor que o application.yml traz como padrao. */
+    private static final long QUINZE_MINUTOS = 900;
+
+    @Test
+    @DisplayName("o aluno tem SEMPRE pelo menos 15 minutos, mesmo fotografando 1s antes da troca")
+    void minimoGarantidoDeQuinzeMinutos() {
+        // As janelas sao alinhadas ao relogio, entao o pior instante
+        // possivel para fotografar e um segundo antes da virada: e ali
+        // que o codigo tem a menor sobrevida.
+        RelogioAjustavel r = new RelogioAjustavel();
+        CodigoRotativoCheckin c = new CodigoRotativoCheckin(QUINZE_MINUTOS, r);
+        r.avancar(Duration.ofSeconds(QUINZE_MINUTOS - 1));   // T0 e multiplo de 900
+
+        SessaoCheckin sessao = sessao(c.gerarSegredo());
+        String fotoDaTela = c.codigoAtual(sessao);
+
+        r.avancar(Duration.ofMinutes(15));
+
+        assertThat(c.aceita(sessao, fotoDaTela))
+                .as("era isto que o professor pediu: 15 minutos de validade, "
+                        + "sem depender de quando o aluno escaneou")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("passados 30 minutos o codigo morre, mesmo no melhor caso")
+    void tetoDeTrintaMinutos() {
+        RelogioAjustavel r = new RelogioAjustavel();
+        CodigoRotativoCheckin c = new CodigoRotativoCheckin(QUINZE_MINUTOS, r);
+        // T0 e o inicio exato de uma janela: o melhor caso possivel.
+        SessaoCheckin sessao = sessao(c.gerarSegredo());
+        String codigo = c.codigoAtual(sessao);
+
+        r.avancar(Duration.ofMinutes(29));
+        assertThat(c.aceita(sessao, codigo))
+                .as("aceita a janela atual e a anterior - no melhor caso sao quase 30 min")
+                .isTrue();
+
+        r.avancar(Duration.ofMinutes(2));   // 31 min no total
+        assertThat(c.aceita(sessao, codigo))
+                .as("o link vazado precisa morrer em algum momento")
+                .isFalse();
+    }
 }

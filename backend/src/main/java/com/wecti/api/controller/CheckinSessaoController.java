@@ -95,7 +95,8 @@ public class CheckinSessaoController {
         String base = (origin != null && !origin.isBlank()) ? origin : frontendUrl;
         String url = base + "/checkin/confirmar/" + sessaoId + "?c=" + codigoRotativo.codigoAtual(sessao);
         String png = Base64.getEncoder().encodeToString(qrCodeService.gerarPng(url));
-        return new QrCodeSessaoResponse(png, codigoRotativo.fimDaJanelaAtual(), sessao.getExpiraEm());
+        return new QrCodeSessaoResponse(png, codigoRotativo.fimDaJanelaAtual(),
+                codigoRotativo.janelaSegundos(), sessao.getExpiraEm());
     }
 
     @PostMapping("/checkin-sessoes/{sessaoId}/confirmar")

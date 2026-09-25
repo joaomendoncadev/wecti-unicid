@@ -28,19 +28,30 @@ import java.util.Locale;
  * no servidor capaz de distinguir os dois casos.
  *
  * <p><b>Como resolve.</b> O codigo e derivado do segredo da sessao e da
- * janela de tempo atual, entao ele muda sozinho a cada janela (padrao: 60
- * segundos) sem precisar gravar nada no banco. A tela do admin regera o
- * QR no mesmo ritmo. Um print compartilhado morre junto com a janela em
+ * janela de tempo atual, entao ele muda sozinho a cada janela (padrao:
+ * 900 segundos) sem precisar gravar nada no banco. A tela do admin regera
+ * o QR no mesmo ritmo. Um print compartilhado morre junto com a janela em
  * que foi tirado - o link que ele carrega para de ser aceito.
  *
  * <p>A janela anterior tambem e aceita. Sem isso, quem escaneasse um
  * segundo antes da troca levaria "QR invalido" no meio de um check-in
- * legitimo. Na pratica o codigo vive entre 1 e 2 janelas.
+ * legitimo. Na pratica o codigo vive entre 1 e 2 janelas - com 900s, de
+ * 15 a 30 minutos.
  *
- * <p><b>O que isso nao resolve.</b> Um aluno na sala ainda pode repassar
- * o link em tempo real pra alguem que esteja com o celular na mao,
- * logado, e aja em menos de um minuto. A rotacao encarece muito o ataque,
- * mas so uma conferencia fisica o elimina.
+ * <p><b>As janelas sao alinhadas ao relogio absoluto</b>
+ * ({@code epochSecond / janelaSegundos}), e nao ao instante em que a
+ * sessao foi criada: com 900s, a troca cai em :00, :15, :30 e :45. Por
+ * isso a PRIMEIRA exibicao de um QR recem-gerado costuma durar menos que
+ * uma janela inteira - mas o codigo que o aluno ja fotografou continua
+ * aceito pela janela seguinte, entao o minimo garantido de validade e
+ * sempre uma janela cheia.
+ *
+ * <p><b>Isto deixou de ser uma defesa.</b> O professor decidiu, em
+ * setembro de 2026, nao tentar impedir que os alunos repassem foto do QR
+ * ("nao temos como controlar isso") e pediu 15 minutos de validade. A
+ * rotacao continua porque custa zero e ainda limita o estrago de um link
+ * vazado, mas o que realmente fecha a porta e a sessao expirar 30 min
+ * depois do fim da palestra.
  */
 @Service
 public class CodigoRotativoCheckin {
@@ -99,6 +110,12 @@ public class CodigoRotativoCheckin {
         long janela = janelaAtual();
         return confere(recebido, sessao.getSegredo(), janela)
                 || confere(recebido, sessao.getSegredo(), janela - 1);
+    }
+
+    /** Duracao de uma janela inteira. A tela usa como denominador da
+     *  barra de tempo em volta do QR - ver QrCodeSessaoResponse. */
+    public long janelaSegundos() {
+        return janelaSegundos;
     }
 
     /** Quando o codigo atual deixa de ser o exibido - e a hora em que a

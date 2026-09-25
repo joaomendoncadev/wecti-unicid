@@ -1,5 +1,6 @@
 package com.wecti.api;
 
+import com.wecti.api.service.CodigoRotativoCheckin;
 import com.wecti.api.service.RegraPontuacao;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WectiApiApplicationTests {
 
     @Autowired private RegraPontuacao regraPontuacao;
+    @Autowired private CodigoRotativoCheckin codigoRotativo;
 
     @Test
     @DisplayName("o contexto da aplicacao carrega sem erro")
@@ -47,5 +49,19 @@ class WectiApiApplicationTests {
         assertThat(regraPontuacao.limiteEventos())
                 .as("teto de pontos ganhos em palestras")
                 .isEqualTo(2000);
+    }
+
+    /**
+     * Mesma ideia do teste acima, para a janela do QR: os testes de regra
+     * injetam o valor a mao, entao nenhum deles olha o que o
+     * application.yml realmente traz. O professor pediu 15 minutos em
+     * setembro de 2026.
+     */
+    @Test
+    @DisplayName("a janela do QR de check-in e de 15 minutos")
+    void janelaDoQrCode() {
+        assertThat(codigoRotativo.janelaSegundos())
+                .as("15 minutos - o minimo garantido de validade para o aluno")
+                .isEqualTo(900);
     }
 }

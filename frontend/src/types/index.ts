@@ -154,6 +154,10 @@ export interface SessaoCheckin {
 export interface QrCodeSessao {
   png_base64: string;
   codigo_expira_em: string;
+  /** Duração de uma janela inteira. A barra de tempo em volta do QR
+   *  usa como denominador: as janelas são alinhadas ao relógio, então
+   *  a primeira exibição costuma ser só um pedaço de janela. */
+  janela_segundos: number;
   sessao_expira_em: string;
 }
 

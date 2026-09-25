@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import PageContainer from '../../components/PageContainer';
 import Button from '../../components/Button';
 import { LoadingBlock } from '../../components/LoadingSpinner';
+import QrCodeComTempo from '../../components/QrCodeComTempo';
 import EmptyState from '../../components/EmptyState';
 import { useEventos } from '../../hooks/useEventos';
 import { useCheckinsDoEvento } from '../../hooks/useCheckinsDoEvento';
@@ -9,7 +10,7 @@ import { criarSessaoCheckin, buscarQrCodeSessao } from '../../services/checkins'
 import { extrairMensagemErro } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { formatarDataHora } from '../../utils/data';
-import type { SessaoCheckin, TipoSessaoCheckin } from '../../types';
+import type { QrCodeSessao, SessaoCheckin, TipoSessaoCheckin } from '../../types';
 
 /** Folga depois do fim da janela, pra pedir o QR seguinte já dentro da
  *  janela nova e não pegar o código velho por causa de arredondamento de
@@ -38,7 +39,7 @@ export default function AdminCheckinPage() {
   const [eventoId, setEventoId] = useState('');
   const [tipo, setTipo] = useState<TipoSessaoCheckin>('ENTRADA');
   const [sessao, setSessao] = useState<SessaoCheckin | null>(null);
-  const [qrCodePng, setQrCodePng] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<QrCodeSessao | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erroRotacao, setErroRotacao] = useState<string | null>(null);
 
@@ -61,7 +62,7 @@ export default function AdminCheckinPage() {
    *  nova seleção, dando a falsa impressão de que era o QR certo. */
   const limparQrCode = useCallback(() => {
     setSessao(null);
-    setQrCodePng(null);
+    setQrCode(null);
     setErroRotacao(null);
   }, []);
 
@@ -85,13 +86,13 @@ export default function AdminCheckinPage() {
       try {
         const qr = await buscarQrCodeSessao(sessaoId);
         if (cancelado) return;
-        setQrCodePng(qr.png_base64);
+        setQrCode(qr);
         setErroRotacao(null);
         const emMs = new Date(qr.codigo_expira_em).getTime() - Date.now() + FOLGA_MS;
         timer = setTimeout(atualizar, Math.max(emMs, FOLGA_MS));
       } catch (e) {
         if (cancelado) return;
-        setQrCodePng(null);
+        setQrCode(null);
         setErroRotacao(extrairMensagemErro(e, 'O QR code parou de ser atualizado. Gere um novo.'));
       }
     };
@@ -184,15 +185,15 @@ export default function AdminCheckinPage() {
             </p>
             <p className="text-lg font-bold text-text">{eventoSelecionado?.titulo}</p>
 
-            {qrCodePng && (
-              <img
-                src={`data:image/png;base64,${qrCodePng}`}
-                alt="QR code de check-in"
-                className="h-72 w-72 rounded-lg bg-white p-3"
+            {qrCode && (
+              <QrCodeComTempo
+                pngBase64={qrCode.png_base64}
+                expiraEm={qrCode.codigo_expira_em}
+                janelaSegundos={qrCode.janela_segundos}
               />
             )}
 
-            {!qrCodePng && !erroRotacao && <LoadingBlock mensagem="Gerando QR code..." />}
+            {!qrCode && !erroRotacao && <LoadingBlock mensagem="Gerando QR code..." />}
 
             {erroRotacao && (
               <div className="flex h-72 w-72 flex-col items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/5 p-6 text-center">
@@ -206,9 +207,9 @@ export default function AdminCheckinPage() {
               com a câmera do próprio celular
             </p>
             <p className="max-w-md text-center text-xs text-text-muted">
-              Este QR se renova sozinho a cada poucos instantes, pra que uma foto da tela não sirva pra quem não
-              está na sala. <span className="font-medium text-text">Deixe esta tela aberta e projetada</span>{' '}
-              durante o check-in.
+              O QR se renova a cada 15 minutos, e a tela busca o próximo sozinha - quem já escaneou continua
+              conseguindo confirmar. <span className="font-medium text-text">Deixe esta tela aberta e
+              projetada</span> durante o check-in: fechada, ela para de renovar e o QR projetado vence.
             </p>
           </div>
         )}
