@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import { useAuth } from '../context/AuthContext';
 import { extrairMensagemErro } from '../services/api';
+import { destinoAposEntrar } from '../utils/rotas';
 
 // Sem link/token por email de proposito (nao ha servidor de email
 // configurado, e o professor confirmou que nao precisa de mais
@@ -33,6 +34,7 @@ type FormValues = z.infer<typeof schema>;
 export default function RecuperarSenhaPage() {
   const { redefinirSenha } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -51,7 +53,10 @@ export default function RecuperarSenhaPage() {
         identificador: dados.identificador,
         nova_senha: dados.novaSenha,
       });
-      navigate(usuario.perfil === 'ALUNO' ? '/eventos' : '/admin/eventos', { replace: true });
+      // Volta para o que a pessoa tentava abrir (tipicamente o link do
+      // QR de check-in). Mandar direto para /eventos fazia o aluno
+      // perder a confirmacao de presenca depois de recuperar a conta.
+      navigate(destinoAposEntrar(location.state, usuario.perfil), { replace: true });
     } catch (erro) {
       setErroGeral(extrairMensagemErro(erro, 'Não foi possível redefinir a senha. Verifique os dados.'));
     } finally {

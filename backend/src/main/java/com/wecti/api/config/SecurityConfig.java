@@ -1,7 +1,6 @@
 package com.wecti.api.config;
 
 import com.wecti.api.security.JwtAuthenticationFilter;
-import com.wecti.api.security.RateLimitAutenticacaoFilter;
 import com.wecti.api.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -72,8 +71,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
-                                            CorsConfigurationSource corsConfigurationSource,
-                                            RateLimitAutenticacaoFilter rateLimitFilter) throws Exception {
+                                            CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
@@ -159,10 +157,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/checkin-sessoes/*/confirmar").hasRole("ALUNO")
 
                         .anyRequest().authenticated())
-                .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
-                // Antes do filtro de JWT: as rotas protegidas por ele sao
-                // publicas, entao o limite precisa valer mesmo sem token.
-                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
+                // O limite de tentativas NAO e mais um filtro por IP: virou
+                // LimiteTentativasPorConta, chamado dentro do AuthService.
+                // Por IP, o Wi-Fi do campus punia a turma inteira - ver o
+                // javadoc daquela classe.
+                .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

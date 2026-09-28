@@ -17,3 +17,29 @@ export function homeDoPerfil(perfil: Perfil | null): string {
   if (perfil === 'ALUNO') return '/eventos';
   return '/perfil';
 }
+
+/** Rota que o usuário tentou abrir antes de ser mandado para o login -
+ *  guardada pelo ProtectedRoute em `location.state.from`. */
+export interface EstadoDeOrigem {
+  from?: { pathname: string; search?: string };
+}
+
+/**
+ * Para onde mandar a pessoa depois de entrar: de volta ao que ela estava
+ * tentando abrir, ou para a home do perfil.
+ *
+ * Existe porque isso quebrou no primeiro dia da WECTI 2026. O aluno
+ * escaneia o QR de check-in sem estar logado, cai no login, e dali vai
+ * para "Esqueci minha senha" ou "Primeiro acesso" — telas que mandavam
+ * todo mundo para /eventos e **jogavam fora o link do check-in**. Ele
+ * recuperava a conta e ainda assim tinha de escanear o QR de novo, com
+ * a fila andando.
+ *
+ * O `search` precisa vir junto: é ele que carrega o `?c=` do código
+ * rotativo. Sem o parâmetro, a confirmação de presença não acontece.
+ */
+export function destinoAposEntrar(estado: unknown, perfil: Perfil | null): string {
+  const origem = (estado as EstadoDeOrigem | null)?.from;
+  if (!origem?.pathname) return homeDoPerfil(perfil);
+  return `${origem.pathname}${origem.search ?? ''}`;
+}

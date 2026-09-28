@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import { useAuth } from '../context/AuthContext';
 import { extrairMensagemErro } from '../services/api';
+import { destinoAposEntrar } from '../utils/rotas';
 
 // Sem campo de perfil aqui de proposito: o cadastro publico e sempre pra
 // ALUNO (confirmado com o professor) - Professor continua sendo
@@ -35,6 +36,7 @@ type FormValues = z.infer<typeof schema>;
 export default function RegistrarPage() {
   const { registrar } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -48,14 +50,16 @@ export default function RegistrarPage() {
     setErroGeral(null);
     setEnviando(true);
     try {
-      await registrar({
+      const usuario = await registrar({
         nome: dados.nome,
         email: dados.email,
         senha: dados.senha,
         rgm: dados.rgm,
         curso: dados.curso || undefined,
       });
-      navigate('/eventos', { replace: true });
+      // Mesmo motivo do login: quem se cadastrou a partir do link do
+      // QR precisa voltar para ele, e nao para a lista de eventos.
+      navigate(destinoAposEntrar(location.state, usuario.perfil), { replace: true });
     } catch (erro) {
       setErroGeral(extrairMensagemErro(erro, 'Não foi possível criar sua conta. Verifique os dados.'));
     } finally {

@@ -198,17 +198,24 @@ certa, e funciona por `curl`.
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `SPRINGDOC_ENABLED` | `false` | Deixa `/docs` e `/api-docs` fora do ar |
-| `RATE_LIMIT_MAX_FALHAS` | `10` | Tentativas de login erradas antes de bloquear o IP |
-| `RATE_LIMIT_JANELA_MINUTOS` | `15` | Duração do bloqueio |
+| `RATE_LIMIT_MAX_FALHAS` | `10` | Falhas seguidas **na mesma conta** antes de ela ter de esperar |
+| `RATE_LIMIT_JANELA_MINUTOS` | `2` | Prazo em que as falhas se somam e tempo de espera depois de estourar |
 | `CHECKIN_JANELA_CODIGO_SEGUNDOS` | `900` | De quanto em quanto tempo o QR se renova (15 min) |
 | `CHECKIN_TOLERANCIA_ANTES_MINUTOS` | `60` | Quanto antes do evento o admin já consegue gerar e projetar o QR |
 | `CHECKIN_TOLERANCIA_DEPOIS_MINUTOS` | `30` | Quanto depois do fim o check-out ainda vale |
 | `INSCRICAO_TOLERANCIA_MINUTOS` | `15` | Folga para se inscrever depois do início |
 
-**Sobre o rate limit:** ele conta **apenas tentativas que falham**. Numa
-palestra a turma inteira acessa pelo mesmo Wi-Fi e sai com o mesmo IP público —
-se acertos contassem, os alunos bloqueariam uns aos outros. Quem digita a senha
-certa nunca entra na conta.
+**Sobre o limite de tentativas:** ele é **por conta**, não por IP, e vale para
+o login e o "esqueci minha senha". Era por IP até 28/09/2026 e derrubou o
+primeiro dia da WECTI: a turma inteira sai pelo mesmo IP do Wi-Fi do campus,
+então dez alunos errando a própria senha bloqueavam todos os outros por 15
+minutos — inclusive no "esqueci minha senha", a saída que eles tentariam usar.
+Foram 42 alunos afetados.
+
+Agora quem erra a senha de uma conta atrasa só aquela conta, e acertar zera o
+contador. A espera caiu para 2 minutos: num evento, 15 minutos de espera valem o
+mesmo que não conseguir entrar. O estado fica **em memória**, então serve para
+uma instância só — subir uma segunda multiplicaria o limite efetivo.
 
 **Sobre a janela do QR:** o QR fica projetado e é o mesmo para a sala inteira. O
 link carrega um código que vale por uma janela de tempo, e a tela do admin busca

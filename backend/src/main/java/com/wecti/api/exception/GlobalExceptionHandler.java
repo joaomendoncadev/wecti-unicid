@@ -39,6 +39,15 @@ public class GlobalExceptionHandler {
                 .body(ErroResponse.de(409, "conflito", ex.getMessage()));
     }
 
+    /** Conta bloqueada por falhas seguidas (LimiteTentativasPorConta).
+     *  Retry-After diz ao cliente em quantos segundos tentar de novo. */
+    @ExceptionHandler(MuitasTentativasException.class)
+    public ResponseEntity<ErroResponse> handleMuitasTentativas(MuitasTentativasException ex) {
+        return ResponseEntity.status(429)
+                .header("Retry-After", String.valueOf(ex.getSegundosAteLiberar()))
+                .body(ErroResponse.de(429, "muitas_tentativas", ex.getMessage()));
+    }
+
     @ExceptionHandler({CredenciaisInvalidasException.class, BadCredentialsException.class})
     public ResponseEntity<ErroResponse> handleCredenciaisInvalidas(RuntimeException ex) {
         // Usa a mensagem da propria excecao (nao mais fixa em "Email ou

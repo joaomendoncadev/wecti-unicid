@@ -5,6 +5,7 @@ import com.wecti.api.service.RegraPontuacao;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -27,6 +28,7 @@ class WectiApiApplicationTests {
 
     @Autowired private RegraPontuacao regraPontuacao;
     @Autowired private CodigoRotativoCheckin codigoRotativo;
+    @Value("${app.rate-limit.janela-minutos}") private long janelaTentativasMinutos;
 
     @Test
     @DisplayName("o contexto da aplicacao carrega sem erro")
@@ -52,8 +54,19 @@ class WectiApiApplicationTests {
     }
 
     /**
-     * Mesma ideia do teste acima, para a janela do QR: os testes de regra
-     * injetam o valor a mao, entao nenhum deles olha o que o
+     * A espera do limite de tentativas. Num evento, 15 minutos de espera
+     * equivalem a perder a palestra - foi o que aconteceu no primeiro
+     * dia da WECTI 2026, quando o limite ainda era por IP.
+     */
+    @Test
+    @DisplayName("a espera do limite de tentativas e de 2 minutos")
+    void janelaDoLimiteDeTentativas() {
+        assertThat(janelaTentativasMinutos).isEqualTo(2);
+    }
+
+    /**
+     * Mesma ideia dos testes acima, para a janela do QR: os testes de
+     * regra injetam o valor a mao, entao nenhum deles olha o que o
      * application.yml realmente traz. O professor pediu 15 minutos em
      * setembro de 2026.
      */

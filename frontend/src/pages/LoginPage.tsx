@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link, Navigate, useLocation, useNavigate, type Location } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import { useAuth } from '../context/AuthContext';
 import { extrairMensagemErro } from '../services/api';
-import { homeDoPerfil } from '../utils/rotas';
+import { destinoAposEntrar, homeDoPerfil } from '../utils/rotas';
 
 const schema = z.object({
   email: z.string().min(1, 'Informe o email').email('Email invalido'),
@@ -38,10 +38,7 @@ export default function LoginPage() {
       // Se o usuario veio de uma rota protegida (ex.: link do QR code de
       // check-in escaneado sem estar logado), volta pra ela em vez de
       // sempre mandar pra home do perfil.
-      const destino = (location.state as { from?: Pick<Location, 'pathname' | 'search'> } | null)?.from;
-      navigate(destino ? `${destino.pathname}${destino.search ?? ''}` : homeDoPerfil(usuario.perfil), {
-        replace: true,
-      });
+      navigate(destinoAposEntrar(location.state, usuario.perfil), { replace: true });
     } catch (erro) {
       setErroGeral(extrairMensagemErro(erro, 'Nao foi possivel entrar. Verifique seus dados.'));
     } finally {
@@ -101,7 +98,11 @@ export default function LoginPage() {
             registro={register('senha')}
           />
 
-          <Link to="/recuperar-senha" className="-mt-1 self-end text-xs text-text-muted hover:text-accent hover:underline">
+          <Link
+            to="/recuperar-senha"
+            state={location.state}
+            className="-mt-1 self-end text-xs text-text-muted hover:text-accent hover:underline"
+          >
             Esqueceu a senha?
           </Link>
 
@@ -117,7 +118,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-text-muted">
             Primeiro acesso?{' '}
-            <Link to="/cadastro" className="font-medium text-accent hover:underline">
+            <Link to="/cadastro" state={location.state} className="font-medium text-accent hover:underline">
               Crie sua conta
             </Link>
           </p>
