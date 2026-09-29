@@ -4,6 +4,7 @@ import Button from '../../components/Button';
 import { LoadingBlock } from '../../components/LoadingSpinner';
 import QrCodeComTempo from '../../components/QrCodeComTempo';
 import EmptyState from '../../components/EmptyState';
+import RegistrarPresencaModal from './RegistrarPresencaModal';
 import { useEventos } from '../../hooks/useEventos';
 import { useCheckinsDoEvento } from '../../hooks/useCheckinsDoEvento';
 import { criarSessaoCheckin, buscarQrCodeSessao } from '../../services/checkins';
@@ -34,7 +35,7 @@ const FOLGA_MS = 1000;
  */
 export default function AdminCheckinPage() {
   const { eventos, carregando: carregandoEventos } = useEventos({});
-  const { notificarErro } = useToast();
+  const { notificarErro, notificarSucesso } = useToast();
 
   const [eventoId, setEventoId] = useState('');
   const [tipo, setTipo] = useState<TipoSessaoCheckin>('ENTRADA');
@@ -42,6 +43,7 @@ export default function AdminCheckinPage() {
   const [qrCode, setQrCode] = useState<QrCodeSessao | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erroRotacao, setErroRotacao] = useState<string | null>(null);
+  const [registrandoPresenca, setRegistrandoPresenca] = useState(false);
 
   // Lista de presença: se atualiza sozinha enquanto a tela fica aberta,
   // que é o modo como ela é usada (projetada durante o check-in). O
@@ -241,9 +243,18 @@ export default function AdminCheckinPage() {
                 </p>
               )}
             </div>
-            <Button variante="outline" onClick={recarregarParticipantes} carregando={atualizando}>
-              Atualizar
-            </Button>
+            <div className="flex gap-2">
+              {/* Para quem participou e não conseguiu ler o QR - de
+                  entrada, de saída ou os dois. Fica aqui, junto da lista
+                  de presença, porque é olhando quem falta nela que o
+                  admin descobre quem precisa do lançamento. */}
+              {eventoSelecionado && (
+                <Button onClick={() => setRegistrandoPresenca(true)}>Registrar presença</Button>
+              )}
+              <Button variante="outline" onClick={recarregarParticipantes} carregando={atualizando}>
+                Atualizar
+              </Button>
+            </div>
           </div>
 
           {/* A lista continua na tela: uma falha de rede momentânea não
@@ -274,7 +285,20 @@ export default function AdminCheckinPage() {
                 <tbody>
                   {participantes.map((p) => (
                     <tr key={p.inscricao_id} className="border-b border-border last:border-0">
-                      <td className="px-5 py-3 text-text">{p.aluno_nome}</td>
+                      <td className="px-5 py-3 text-text">
+                        {p.aluno_nome}
+                        {/* Presença afirmada pelo admin e presença lida do
+                            QR não podem parecer a mesma coisa na hora de
+                            conferir a lista final. */}
+                        {p.registrada_pelo_admin && (
+                          <span
+                            className="ml-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300"
+                            title={p.justificativa ?? undefined}
+                          >
+                            lançada pelo admin
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 text-text-muted">{p.aluno_rgm ?? '-'}</td>
                       <td className="px-5 py-3 text-text-muted">{formatarDataHora(p.entrada)}</td>
                       <td className="px-5 py-3 text-text-muted">{p.saida ? formatarDataHora(p.saida) : '-'}</td>
@@ -285,6 +309,18 @@ export default function AdminCheckinPage() {
             </div>
           )}
         </div>
+      )}
+
+      {registrandoPresenca && eventoSelecionado && (
+        <RegistrarPresencaModal
+          evento={eventoSelecionado}
+          onFechar={() => setRegistrandoPresenca(false)}
+          onRegistrado={(nome) => {
+            setRegistrandoPresenca(false);
+            notificarSucesso(`Presença de ${nome} registrada - pontos e certificado liberados.`);
+            recarregarParticipantes();
+          }}
+        />
       )}
     </PageContainer>
   );

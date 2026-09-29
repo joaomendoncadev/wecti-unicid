@@ -7,6 +7,7 @@ import com.wecti.api.dto.RedefinirSenhaRequest;
 import com.wecti.api.dto.UsuarioResponse;
 import com.wecti.api.exception.CredenciaisInvalidasException;
 import com.wecti.api.exception.MuitasTentativasException;
+import com.wecti.api.security.CredenciaisDigitadas;
 import com.wecti.api.security.LimiteTentativasPorConta;
 import com.wecti.api.repository.UsuarioRepository;
 import com.wecti.api.security.JwtService;
@@ -32,15 +33,19 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        exigirContaLiberada(request.email());
+        // O email vira chave de busca e de limite de tentativas; a SENHA
+        // nao passa por normalizacao nenhuma (espaco e maiuscula sao
+        // caracteres validos de senha - ver CredenciaisDigitadas).
+        String email = CredenciaisDigitadas.email(request.email());
+        exigirContaLiberada(email);
 
-        var usuario = usuarioRepository.findByEmail(request.email()).orElse(null);
+        var usuario = usuarioRepository.findByEmailIgnoreCase(email).orElse(null);
         if (usuario == null || !passwordEncoder.matches(request.senha(), usuario.getSenha())) {
-            limiteTentativas.registrarFalha(request.email());
+            limiteTentativas.registrarFalha(email);
             throw new CredenciaisInvalidasException("Email ou senha invalidos");
         }
 
-        limiteTentativas.registrarSucesso(request.email());
+        limiteTentativas.registrarSucesso(email);
         String token = jwtService.gerarToken(usuario);
         return new LoginResponse(token, UsuarioResponse.de(usuario));
     }
@@ -67,17 +72,21 @@ public class AuthService {
     /** "Esqueci minha senha" (ver UsuarioService.redefinirSenha) - ja
      *  devolve token, entao a pessoa entra direto com a senha nova. */
     public LoginResponse redefinirSenha(RedefinirSenhaRequest request) {
-        exigirContaLiberada(request.email());
+        // Mesma chave normalizada do login: senao "Aluno@x.com" e
+        // "aluno@x.com" teriam contadores de tentativa separados, e
+        // dariam o dobro de chances a quem estivesse adivinhando.
+        String email = CredenciaisDigitadas.email(request.email());
+        exigirContaLiberada(email);
         try {
             var usuario = usuarioService.redefinirSenha(request);
-            limiteTentativas.registrarSucesso(request.email());
+            limiteTentativas.registrarSucesso(email);
             String token = jwtService.gerarToken(usuario);
             return new LoginResponse(token, UsuarioResponse.de(usuario));
         } catch (CredenciaisInvalidasException e) {
             // Errar o RGM aqui e uma tentativa de adivinhacao como
             // outra qualquer, entao conta - mas na conta alvo, nao no
             // IP de quem tentou.
-            limiteTentativas.registrarFalha(request.email());
+            limiteTentativas.registrarFalha(email);
             throw e;
         }
     }

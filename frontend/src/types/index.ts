@@ -114,6 +114,11 @@ export interface EventoCheckin {
   entrada: string;
   saida: string | null;
   percentual_presenca: number | null;
+  /** Presença afirmada pelo admin em vez de lida do QR code. A lista
+   *  marca essas linhas: presença comprovada e presença declarada não
+   *  podem parecer a mesma coisa na conferência final. */
+  registrada_pelo_admin: boolean;
+  justificativa: string | null;
 }
 
 /**

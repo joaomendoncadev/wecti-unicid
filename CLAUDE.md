@@ -93,6 +93,32 @@ confirmar de novo.
 - **No-show**: marca quem NÃO cancelou E NÃO fez check-in. Hoje vale 0
   pontos (ver Penalidade abaixo) — continua registrado porque é o que
   mostra quem reservou vaga e não apareceu.
+- **Presença lançada pelo admin**: para quem participou e não conseguiu
+  ler o QR — de entrada, de saída ou os dois (câmera com defeito, sinal
+  fraco, conta travada na hora). `POST /eventos/{id}/presencas-manuais`,
+  na tela de Check-in do admin. Ver `PresencaManualService`.
+
+  O que se grava é a **presença**, não os pontos. Pontuação,
+  certificado e saída do no-show derivam todos do check-in, então passam
+  a valer sozinhos — e os pontos entram como pontos da palestra,
+  respeitando o teto de 2000.
+
+  > Lançar os pontos direto, via `PontuacaoExtra`, resolveria só a
+  > pontuação: o certificado continuaria negado (`CertificadoService`
+  > olha o check-in, não a pontuação), o aluno seguiria marcado como
+  > faltante, e os pontos furariam o teto, porque pontuação extra fica
+  > fora dele de propósito, por ser premiação de gincana.
+
+  Entrada e saída recebem o horário do **próprio evento**, nunca o
+  instante do clique. Quando o aluno já tinha lido o QR de entrada, só a
+  saída é preenchida e a entrada real é preservada. A inscrição é criada
+  se não existir, ignorando o prazo de propósito (o prazo existe para o
+  aluno não reservar vaga em cima da hora; quem decide aqui é o admin,
+  sobre palestra que já aconteceu), e inscrição cancelada volta a valer.
+  Justificativa é obrigatória, e `checkins.registrado_por_id` guarda quem
+  lançou — presença comprovada e presença declarada não podem ficar
+  indistinguíveis na conferência final. A lista do admin marca essas
+  linhas.
 - **Certificado**: exige **check-in + check-out**, e nada mais. Ver
   `Checkin.isPresencaQualificada()`.
 

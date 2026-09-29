@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
@@ -37,6 +38,29 @@ public class Checkin {
     private LocalDateTime entrada;
 
     private LocalDateTime saida;
+
+    /**
+     * Admin que afirmou esta presenca a mao, ou {@code null} quando ela
+     * veio da leitura normal do QR code.
+     *
+     * <p>Existe para quem participou da palestra e nao conseguiu ler o QR
+     * (camera com defeito, sinal fraco, conta travada). Ver
+     * PresencaManualService. Guardar quem lancou e por que e o que
+     * permite, depois, separar presenca comprovada de presenca declarada
+     * - sem isso as duas ficariam indistinguiveis na lista final.
+     */
+    @ManyToOne
+    @JoinColumn(name = "registrado_por_id")
+    private Usuario registradoPor;
+
+    @Column(length = 200)
+    private String justificativa;
+
+    /** Presenca afirmada pelo admin, nao lida do QR code. */
+    @Transient
+    public boolean isRegistradoPeloAdmin() {
+        return registradoPor != null;
+    }
 
     /**
      * Regra do certificado/pontuacao: <b>os dois QR codes lidos</b>.

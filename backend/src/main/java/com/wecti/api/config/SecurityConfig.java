@@ -153,6 +153,11 @@ public class SecurityConfig {
                         // confirma - ver CheckinSessaoController.
                         .requestMatchers(HttpMethod.GET, "/eventos/*/checkins").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/eventos/*/checkin-sessoes").hasRole("ADMIN")
+                        // Presenca afirmada pelo admin, para quem participou e nao
+                        // conseguiu ler o QR - ver PresencaManualService. So ADMIN,
+                        // obviamente: aluno confirmando a propria presenca sem QR
+                        // dispensaria o check-in inteiro.
+                        .requestMatchers(HttpMethod.POST, "/eventos/*/presencas-manuais").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/checkin-sessoes/*/qrcode").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/checkin-sessoes/*/confirmar").hasRole("ALUNO")
 

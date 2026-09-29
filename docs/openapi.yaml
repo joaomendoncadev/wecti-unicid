@@ -732,32 +732,65 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    inscricao_id:
-                      type: string
-                      format: uuid
-                    aluno_id:
-                      type: string
-                      format: uuid
-                    aluno_nome:
-                      type: string
-                    aluno_rgm:
-                      type: string
-                      nullable: true
-                    entrada:
-                      type: string
-                      format: date-time
-                    saida:
-                      type: string
-                      format: date-time
-                      nullable: true
-                    percentual_presenca:
-                      type: number
-                      format: float
-                      nullable: true
+                  $ref: '#/components/schemas/EventoCheckin'
         '404':
           description: Evento não encontrado
+
+  /eventos/{eventoId}/presencas-manuais:
+    parameters:
+      - name: eventoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Checkins]
+      summary: Admin registra a presença de quem não conseguiu ler o QR (admin)
+      description: >
+        Para o aluno que participou da palestra e não conseguiu ler o QR
+        code - de entrada, de saída ou os dois (câmera com defeito, sinal
+        fraco, conta travada na hora).
+
+
+        Registra a **presença**, não os pontos. Pontuação, certificado e
+        saída da lista de no-show derivam todos do check-in, então passam
+        a valer sozinhos - e os pontos entram como pontos da palestra,
+        respeitando o teto de `app.pontuacao.limite-eventos`, em vez de
+        furá-lo como fariam pontos extras de gincana (que ficam fora do
+        teto de propósito, por serem premiação).
+
+
+        Entrada e saída recebem o horário do próprio evento, não o
+        instante do clique. Quando o aluno já tinha lido o QR de entrada,
+        só a saída é preenchida e a entrada real é preservada.
+
+
+        A inscrição é criada se não existir, ignorando o prazo de
+        inscrição de propósito: o prazo existe para o aluno não reservar
+        vaga em cima da hora, e quem decide aqui é o admin, sobre uma
+        palestra que já aconteceu. Inscrição cancelada volta a valer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NovaPresencaManual'
+      responses:
+        '201':
+          description: Presença registrada - devolve a linha do relatório de presença
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventoCheckin'
+        '400':
+          description: Justificativa vazia, ou o alvo não é um aluno
+        '404':
+          description: Evento ou aluno não encontrado
+        '409':
+          description: O aluno já tem check-in e check-out completos neste evento
+        '422':
+          description: O evento ainda não começou - não há presença para registrar
 
   /eventos/{eventoId}/checkin-sessoes:
     parameters:
@@ -1471,6 +1504,63 @@ components:
           type: number
           format: float
           description: Calculado quando há saída registrada
+
+    EventoCheckin:
+      type: object
+      description: >
+        Linha do relatório de presença de um evento ("Participantes do
+        Evento", na tela de check-in do admin).
+      properties:
+        inscricao_id:
+          type: string
+          format: uuid
+        aluno_id:
+          type: string
+          format: uuid
+        aluno_nome:
+          type: string
+        aluno_rgm:
+          type: string
+          nullable: true
+        entrada:
+          type: string
+          format: date-time
+        saida:
+          type: string
+          format: date-time
+          nullable: true
+        percentual_presenca:
+          type: number
+          format: float
+          nullable: true
+          description: >
+            Informativo. Não decide pontuação nem certificado desde que a
+            exigência de 75% de permanência saiu (setembro de 2026).
+        registrada_pelo_admin:
+          type: boolean
+          description: >
+            true quando a presença foi afirmada pelo admin em vez de lida
+            do QR code (ver POST /eventos/{eventoId}/presencas-manuais).
+            A tela marca essas linhas: presença comprovada e presença
+            declarada não podem parecer a mesma coisa na conferência.
+        justificativa:
+          type: string
+          nullable: true
+          description: Motivo informado pelo admin; nulo quando veio do QR code.
+
+    NovaPresencaManual:
+      type: object
+      required: [aluno_id, justificativa]
+      properties:
+        aluno_id:
+          type: string
+          format: uuid
+        justificativa:
+          type: string
+          maxLength: 200
+          description: >
+            Obrigatória - é a única explicação que vai sobrar, depois,
+            para uma presença sem leitura de QR por trás.
 
     NovaSessaoCheckin:
       type: object

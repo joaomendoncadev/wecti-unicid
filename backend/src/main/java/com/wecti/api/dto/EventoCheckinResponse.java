@@ -19,7 +19,13 @@ public record EventoCheckinResponse(
         String alunoRgm,
         LocalDateTime entrada,
         LocalDateTime saida,
-        Float percentualPresenca) {
+        Float percentualPresenca,
+        /** Presenca afirmada pelo admin em vez de lida do QR code (ver
+         *  PresencaManualService). A tela marca essas linhas: presenca
+         *  comprovada e presenca declarada nao podem parecer a mesma
+         *  coisa na hora de conferir a lista final. */
+        boolean registradaPeloAdmin,
+        String justificativa) {
 
     public static EventoCheckinResponse de(Checkin checkin, Evento evento) {
         var aluno = checkin.getInscricao().getAluno();
@@ -35,6 +41,7 @@ public record EventoCheckinResponse(
             percentual = duracaoEvento > 0 ? (float) (100.0 * permanencia / duracaoEvento) : 0f;
         }
         return new EventoCheckinResponse(checkin.getInscricao().getId(), aluno.getId(), aluno.getNome(),
-                aluno.getRgm(), checkin.getEntrada(), checkin.getSaida(), percentual);
+                aluno.getRgm(), checkin.getEntrada(), checkin.getSaida(), percentual,
+                checkin.isRegistradoPeloAdmin(), checkin.getJustificativa());
     }
 }

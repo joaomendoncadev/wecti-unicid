@@ -3,6 +3,7 @@ package com.wecti.api.controller;
 import com.wecti.api.dto.CheckinResponse;
 import com.wecti.api.dto.ConfirmarCheckinRequest;
 import com.wecti.api.dto.EventoCheckinResponse;
+import com.wecti.api.dto.NovaPresencaManualRequest;
 import com.wecti.api.dto.NovaSessaoCheckinRequest;
 import com.wecti.api.dto.QrCodeSessaoResponse;
 import com.wecti.api.dto.SessaoCheckinResponse;
@@ -11,6 +12,7 @@ import com.wecti.api.service.CheckinSessaoService;
 import com.wecti.api.service.CheckinService;
 import com.wecti.api.service.CodigoRotativoCheckin;
 import com.wecti.api.service.EventoService;
+import com.wecti.api.service.PresencaManualService;
 import com.wecti.api.service.QrCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -36,17 +38,20 @@ public class CheckinSessaoController {
     private final EventoService eventoService;
     private final QrCodeService qrCodeService;
     private final CodigoRotativoCheckin codigoRotativo;
+    private final PresencaManualService presencaManualService;
     private final String frontendUrl;
 
     public CheckinSessaoController(CheckinSessaoService checkinSessaoService, CheckinService checkinService,
                                     EventoService eventoService, QrCodeService qrCodeService,
                                     CodigoRotativoCheckin codigoRotativo,
+                                    PresencaManualService presencaManualService,
                                     @Value("${app.frontend-url}") String frontendUrl) {
         this.checkinSessaoService = checkinSessaoService;
         this.checkinService = checkinService;
         this.eventoService = eventoService;
         this.qrCodeService = qrCodeService;
         this.codigoRotativo = codigoRotativo;
+        this.presencaManualService = presencaManualService;
         this.frontendUrl = frontendUrl;
     }
 
@@ -58,6 +63,23 @@ public class CheckinSessaoController {
         return checkinService.listarPorEvento(eventoId).stream()
                 .map(checkin -> EventoCheckinResponse.de(checkin, evento))
                 .toList();
+    }
+
+    /**
+     * Admin registra a presenca de quem participou e nao conseguiu ler o
+     * QR code (ver PresencaManualService). Devolve a mesma linha do
+     * relatorio acima, para a tela so acrescentar na lista.
+     */
+    @PostMapping("/eventos/{eventoId}/presencas-manuais")
+    public ResponseEntity<EventoCheckinResponse> registrarPresencaManual(
+            @PathVariable UUID eventoId,
+            @Valid @RequestBody NovaPresencaManualRequest request,
+            @AuthenticationPrincipal AuthenticatedUser autenticado) {
+        var checkin = presencaManualService.registrar(
+                eventoId, request.alunoId(), request.justificativa(), autenticado.id());
+        var evento = eventoService.buscarPorId(eventoId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(EventoCheckinResponse.de(checkin, evento));
     }
 
     @PostMapping("/eventos/{eventoId}/checkin-sessoes")

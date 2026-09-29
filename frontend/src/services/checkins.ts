@@ -27,3 +27,21 @@ export function confirmarCheckinSessao(sessaoId: string, codigo: string) {
 export function listarCheckinsDoEvento(eventoId: string) {
   return api.get<EventoCheckin[]>(`/eventos/${eventoId}/checkins`).then((res) => res.data);
 }
+
+/**
+ * Admin afirma a presença de quem participou e não conseguiu ler o QR
+ * code (câmera com defeito, sinal fraco, conta travada na hora).
+ *
+ * Registra a PRESENÇA, não os pontos: pontuação, certificado e saída da
+ * lista de no-show derivam todos do check-in, então passam a valer
+ * sozinhos. Entrada e saída são as do próprio evento - não há horário a
+ * informar. Ver PresencaManualService no backend.
+ */
+export function registrarPresencaManual(eventoId: string, alunoId: string, justificativa: string) {
+  return api
+    .post<EventoCheckin>(`/eventos/${eventoId}/presencas-manuais`, {
+      aluno_id: alunoId,
+      justificativa,
+    })
+    .then((res) => res.data);
+}

@@ -13,6 +13,7 @@ import com.wecti.api.exception.RecursoNaoEncontradoException;
 import com.wecti.api.exception.RegraNegocioException;
 import com.wecti.api.repository.InscricaoRepository;
 import com.wecti.api.repository.UsuarioRepository;
+import com.wecti.api.security.CredenciaisDigitadas;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -73,7 +74,9 @@ public class UsuarioService {
         String senhaProvisoria = UUID.randomUUID().toString();
         Usuario usuario = Usuario.builder()
                 .nome(request.nome())
-                .email(request.email())
+                // Email guardado sempre normalizado: e o login, e quem
+                // digita nao repete a mesma maiuscula toda vez.
+                .email(CredenciaisDigitadas.email(request.email()))
                 .perfil(request.perfil())
                 .rgm(request.perfil() == Perfil.ALUNO ? request.rgm() : null)
                 .cpf(request.perfil() == Perfil.ADMIN ? request.cpf() : null)
@@ -112,7 +115,7 @@ public class UsuarioService {
         validarCpfUnico(request.cpf(), id);
 
         usuario.setNome(request.nome());
-        usuario.setEmail(request.email());
+        usuario.setEmail(CredenciaisDigitadas.email(request.email()));
         usuario.setPerfil(request.perfil());
         usuario.setRgm(request.perfil() == Perfil.ALUNO ? request.rgm() : null);
         usuario.setCpf(request.perfil() == Perfil.ADMIN ? request.cpf() : null);
@@ -174,7 +177,7 @@ public class UsuarioService {
 
         Usuario usuario = Usuario.builder()
                 .nome(request.nome())
-                .email(request.email())
+                .email(CredenciaisDigitadas.email(request.email()))
                 .perfil(Perfil.ALUNO)
                 .rgm(request.rgm())
                 .curso(request.curso())
@@ -193,13 +196,20 @@ public class UsuarioService {
      * existe ou qual o motivo exato de nao bater.
      */
     public Usuario redefinirSenha(RedefinirSenhaRequest request) {
-        Usuario usuario = usuarioRepository.findByEmail(request.email())
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(CredenciaisDigitadas.email(request.email()))
                 .orElseThrow(() -> new CredenciaisInvalidasException(
                         "Dados nao conferem - verifique o email e o RGM/CPF informados"));
 
         String identificadorEsperado = usuario.getPerfil() == Perfil.ALUNO ? usuario.getRgm() : usuario.getCpf();
+        // So os digitos dos dois lados: o aluno que digita o RGM com um
+        // espaco colado pelo teclado, ou o admin que digita o CPF com
+        // ponto e traco, estao informando o identificador certo. Comparar
+        // a string crua reprovava os dois com "Dados nao conferem" - foi
+        // o que travou parte dos alunos no 2o dia da WECTI 2026.
+        String digitado = CredenciaisDigitadas.identificador(request.identificador());
 
-        if (identificadorEsperado == null || !identificadorEsperado.equals(request.identificador())) {
+        if (identificadorEsperado == null || digitado.isEmpty()
+                || !CredenciaisDigitadas.identificador(identificadorEsperado).equals(digitado)) {
             throw new CredenciaisInvalidasException(
                     "Dados nao conferem - verifique o email e o RGM/CPF informados");
         }
@@ -237,9 +247,13 @@ public class UsuarioService {
     }
 
     /** ignorarId: ao atualizar, o proprio usuario nao deve contar como
-     *  conflito consigo mesmo. */
+     *  conflito consigo mesmo.
+     *
+     *  <p>Compara ignorando maiuscula pelo mesmo motivo do login: senao
+     *  "Joao@x.com" e "joao@x.com" viram duas contas, e o aluno que
+     *  cadastrou uma tenta entrar na outra. */
     private void validarEmailUnico(String email, UUID ignorarId) {
-        usuarioRepository.findByEmail(email)
+        usuarioRepository.findByEmailIgnoreCase(CredenciaisDigitadas.email(email))
                 .filter(outro -> ignorarId == null || !outro.getId().equals(ignorarId))
                 .ifPresent(outro -> {
                     throw new ConflitoException("Ja existe um usuario cadastrado com este email");
