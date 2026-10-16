@@ -181,6 +181,33 @@ confirmar de novo.
   promovesse de volta - o sistema ficaria sem administrador e só um
   acesso direto ao banco resolveria. Rebaixar **outro** admin é
   permitido: isso sempre deixa pelo menos um de pé, que é ele mesmo.
+- **Excluir usuário apaga tudo que depende dele**: inscrições,
+  check-ins, certificados e pontos de gincana. Irreversível — um
+  certificado já baixado deixa de validar em `/validar/{codigo}`.
+
+  **Aluno com inscrição também é excluído.** A recusa antiga ("não é
+  possível excluir um usuário que já possui inscrições") foi removida.
+
+  > Na WECTI 2026 vários alunos criaram uma segunda conta, com outro
+  > RGM, por não conseguirem entrar na primeira, e pontuaram nas duas.
+  > Consolidar na conta certa exige apagar a errada — que, por
+  > definição, é uma que tem inscrição e presença. A trava tornava o
+  > acerto impossível pela aplicação: só mexendo no banco à mão.
+
+  A ordem da remoção não é detalhe: nenhuma FK tem `ON DELETE CASCADE`,
+  então os dependentes saem de fora para dentro (certificados →
+  check-ins → inscrições → pontos de gincana) ou o banco recusa.
+
+  **Procedimento para conta duplicada** — a ordem importa: conferir em
+  quais palestras a conta errada tem presença, lançar essas presenças na
+  conta certa (ver Presença lançada pelo admin), e **só então** apagar.
+  Apagar antes perde o registro do que precisa ser creditado.
+
+  Duas recusas continuam: o admin não exclui a própria conta, e ninguém
+  que já **lançou** pontos ou registrou presença de outros alunos pode
+  ser excluído — esses lançamentos pertencem aos alunos premiados, e
+  `pontuacoes_extras.criado_por_id` é NOT NULL. Na prática isso só
+  alcança admin; aluno não lança nada em ninguém.
 - **Não existe recorte por semestre.** A pontuação é simplesmente a do
   aluno no WECTI, somando todas as palestras mais os pontos de gincana.
   Não há reinício por período.

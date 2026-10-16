@@ -20,6 +20,10 @@ public interface InscricaoRepository extends JpaRepository<Inscricao, UUID> {
     boolean existsByAlunoIdAndEventoId(UUID alunoId, UUID eventoId);
     boolean existsByAlunoId(UUID alunoId);
 
+    /** Usado ao excluir um aluno (ver UsuarioService.excluir): as
+     *  inscricoes dele saem junto, depois de check-ins e certificados. */
+    void deleteByAlunoId(UUID alunoId);
+
     /** Vagas ocupadas de um evento. So ATIVA conta - quem cancelou
      *  devolveu a vaga. */
     long countByEventoIdAndStatus(UUID eventoId, InscricaoStatus status);

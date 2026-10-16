@@ -92,15 +92,35 @@ export default function AdminUsuariosPage() {
     }
   };
 
+  /**
+   * Exclusão leva junto inscrições, presenças, certificados e pontos de
+   * gincana do usuário - e nada disso volta. O aviso é explícito porque
+   * o uso principal é apagar conta duplicada, e errar o alvo significa
+   * destruir a conta boa de um aluno.
+   *
+   * Para conta duplicada, a ordem importa: lance as presenças na conta
+   * CERTA (botão "Registrar presença", na tela de Check-in) antes de
+   * apagar a errada - depois de apagar não há mais como saber em quais
+   * palestras ele esteve.
+   */
   const excluir = async (usuario: Usuario) => {
-    if (!window.confirm(`Excluir o usuário "${usuario.nome}"?`)) return;
+    const aviso =
+      `Excluir "${usuario.nome}" definitivamente?\n\n` +
+      'Serão apagados junto, sem possibilidade de desfazer:\n' +
+      '• as inscrições dele\n' +
+      '• os check-ins e check-outs\n' +
+      '• os certificados já emitidos (um PDF baixado deixa de validar)\n' +
+      '• os pontos de gincana lançados para ele\n\n' +
+      'Se for conta duplicada: registre as presenças na conta correta ANTES de apagar esta.';
+    if (!window.confirm(aviso)) return;
+
     setExcluindoId(usuario.id);
     try {
       await excluirUsuario(usuario.id);
-      notificarSucesso('Usuário excluído.');
+      notificarSucesso(`"${usuario.nome}" foi excluído.`);
       carregar();
     } catch (e) {
-      notificarErro(extrairMensagemErro(e, 'Não foi possível excluir - o usuário pode já ter inscrições.'));
+      notificarErro(extrairMensagemErro(e, 'Não foi possível excluir o usuário.'));
     } finally {
       setExcluindoId(null);
     }

@@ -331,18 +331,41 @@ paths:
           description: O admin tentou remover o próprio acesso de administrador
     delete:
       tags: [Usuarios]
-      summary: Exclui um usuário (somente admin)
+      summary: Exclui um usuário e tudo que depende dele (somente admin)
       description: >
-        O admin não pode excluir a própria conta - mesma razão da trava
-        em PUT: deixaria o sistema potencialmente sem administrador, sem
-        como desfazer pela aplicação.
+        **Apaga junto, em cascata e sem desfazer:** inscrições,
+        check-ins/check-outs, certificados emitidos e pontos de gincana
+        do usuário. Um certificado já baixado deixa de validar em
+        `GET /validar/{codigo}`.
+
+
+        Usuário **com** inscrição também é excluído. A recusa anterior
+        ("usuário possui inscrições") foi removida na WECTI 2026: vários
+        alunos criaram uma segunda conta, com outro RGM, por não
+        conseguirem entrar na primeira, e pontuaram nas duas. Consolidar
+        na conta certa exige apagar a errada - que, por definição, tem
+        inscrição e presença.
+
+
+        **Ordem recomendada para conta duplicada:** conferir em quais
+        palestras a conta errada tem presença, lançar essas presenças na
+        conta correta (`POST /eventos/{eventoId}/presencas-manuais`) e só
+        então apagar. Apagar antes perde o registro do que creditar.
+
+
+        Duas recusas permanecem: o admin não pode excluir a própria conta,
+        e ninguém que já lançou pontos ou registrou presença de outros
+        alunos pode ser excluído - esses lançamentos pertencem aos alunos
+        premiados, e `pontuacoes_extras.criado_por_id` é NOT NULL.
       responses:
         '204':
-          description: Usuário excluído
+          description: Usuário excluído, com os dados dependentes
+        '404':
+          description: Usuário não encontrado
         '422':
           description: >
-            Usuário possui inscrições, ou o admin tentou excluir a
-            própria conta
+            O admin tentou excluir a própria conta, ou o usuário já
+            lançou pontos / registrou presença de outros alunos
 
   /usuarios/me:
     get:

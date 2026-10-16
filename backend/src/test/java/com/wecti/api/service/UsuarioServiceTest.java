@@ -7,7 +7,11 @@ import com.wecti.api.dto.NovoUsuarioRequest;
 import com.wecti.api.exception.CampoInvalidoException;
 import com.wecti.api.exception.ConflitoException;
 import com.wecti.api.exception.RegraNegocioException;
+import com.wecti.api.domain.Inscricao;
+import com.wecti.api.repository.CertificadoRepository;
+import com.wecti.api.repository.CheckinRepository;
 import com.wecti.api.repository.InscricaoRepository;
+import com.wecti.api.repository.PontuacaoExtraRepository;
 import com.wecti.api.repository.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +54,9 @@ class UsuarioServiceTest {
 
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private InscricaoRepository inscricaoRepository;
+    @Mock private CheckinRepository checkinRepository;
+    @Mock private CertificadoRepository certificadoRepository;
+    @Mock private PontuacaoExtraRepository pontuacaoExtraRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks private UsuarioService usuarioService;
@@ -236,25 +245,89 @@ class UsuarioServiceTest {
         }
 
         @Test
-        @DisplayName("admin exclui outro usuario sem inscricoes")
+        @DisplayName("admin exclui aluno sem inscricao nenhuma")
         void excluiOutro() {
             aluno();
-            when(inscricaoRepository.existsByAlunoId(ALUNO_ID)).thenReturn(false);
+            when(inscricaoRepository.findByAlunoId(ALUNO_ID)).thenReturn(List.of());
 
             usuarioService.excluir(ALUNO_ID, ADMIN_ID);
 
             verify(usuarioRepository).delete(any(Usuario.class));
         }
 
+        /**
+         * O caso que motivou a mudanca: aluno que criou uma segunda conta
+         * e pontuou nas duas. A conta errada tem inscricao e presenca -
+         * se exclusao parasse nisso, o acerto so sairia mexendo no banco
+         * a mao.
+         */
         @Test
-        @DisplayName("usuario com inscricoes continua protegido contra exclusao")
-        void naoExcluiComInscricoes() {
+        @DisplayName("exclui aluno COM inscricao, apagando o que depende dela")
+        void excluiAlunoComInscricoes() {
             aluno();
-            when(inscricaoRepository.existsByAlunoId(ALUNO_ID)).thenReturn(true);
+            UUID inscricaoA = UUID.randomUUID();
+            UUID inscricaoB = UUID.randomUUID();
+            when(inscricaoRepository.findByAlunoId(ALUNO_ID)).thenReturn(List.of(
+                    Inscricao.builder().id(inscricaoA).build(),
+                    Inscricao.builder().id(inscricaoB).build()));
 
-            assertThatThrownBy(() -> usuarioService.excluir(ALUNO_ID, ADMIN_ID))
+            usuarioService.excluir(ALUNO_ID, ADMIN_ID);
+
+            // A ordem e o que importa: nenhuma FK tem ON DELETE CASCADE,
+            // entao apagar de dentro para fora estoura constraint.
+            var ordem = inOrder(certificadoRepository, checkinRepository,
+                    inscricaoRepository, pontuacaoExtraRepository, usuarioRepository);
+            ordem.verify(certificadoRepository).deleteByInscricaoIdIn(List.of(inscricaoA, inscricaoB));
+            ordem.verify(checkinRepository).deleteByInscricaoIdIn(List.of(inscricaoA, inscricaoB));
+            ordem.verify(inscricaoRepository).deleteByAlunoId(ALUNO_ID);
+            ordem.verify(pontuacaoExtraRepository).deleteByAlunoId(ALUNO_ID);
+            ordem.verify(usuarioRepository).delete(any(Usuario.class));
+        }
+
+        /** Sem inscricao nao ha o que apagar em cascata - e um
+         *  "delete ... in ()" com lista vazia quebra em alguns bancos. */
+        @Test
+        @DisplayName("sem inscricao, nao tenta apagar certificado nem check-in")
+        void semInscricaoNaoApagaDependentes() {
+            aluno();
+            when(inscricaoRepository.findByAlunoId(ALUNO_ID)).thenReturn(List.of());
+
+            usuarioService.excluir(ALUNO_ID, ADMIN_ID);
+
+            verify(certificadoRepository, never()).deleteByInscricaoIdIn(any());
+            verify(checkinRepository, never()).deleteByInscricaoIdIn(any());
+            verify(pontuacaoExtraRepository).deleteByAlunoId(ALUNO_ID);
+        }
+
+        /**
+         * Lancamento de gincana pertence ao aluno premiado, nao a quem
+         * lancou. Apagar o autor junto tiraria pontos de terceiros - e
+         * criado_por_id e NOT NULL, entao nem desvincular daria.
+         */
+        @Test
+        @DisplayName("recusa apagar quem ja lancou pontos em outros alunos")
+        void naoExcluiAutorDeLancamentos() {
+            admin();
+            when(pontuacaoExtraRepository.existsByCriadoPorId(ADMIN_ID)).thenReturn(true);
+
+            assertThatThrownBy(() -> usuarioService.excluir(ADMIN_ID, ALUNO_ID))
                     .isInstanceOf(RegraNegocioException.class)
-                    .hasMessageContaining("inscricoes");
+                    .hasMessageContaining("lancou pontos");
+
+            verify(usuarioRepository, never()).delete(any(Usuario.class));
+        }
+
+        @Test
+        @DisplayName("recusa apagar quem ja registrou presenca de outros alunos")
+        void naoExcluiAutorDePresencas() {
+            admin();
+            when(checkinRepository.existsByRegistradoPorId(ADMIN_ID)).thenReturn(true);
+
+            assertThatThrownBy(() -> usuarioService.excluir(ADMIN_ID, ALUNO_ID))
+                    .isInstanceOf(RegraNegocioException.class)
+                    .hasMessageContaining("registrou presenca");
+
+            verify(usuarioRepository, never()).delete(any(Usuario.class));
         }
     }
 }

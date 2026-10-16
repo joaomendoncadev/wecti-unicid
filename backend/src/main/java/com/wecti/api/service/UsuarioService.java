@@ -1,5 +1,6 @@
 package com.wecti.api.service;
 
+import com.wecti.api.domain.Inscricao;
 import com.wecti.api.domain.Perfil;
 import com.wecti.api.domain.Usuario;
 import com.wecti.api.dto.AtualizarPerfilRequest;
@@ -11,7 +12,10 @@ import com.wecti.api.exception.ConflitoException;
 import com.wecti.api.exception.CredenciaisInvalidasException;
 import com.wecti.api.exception.RecursoNaoEncontradoException;
 import com.wecti.api.exception.RegraNegocioException;
+import com.wecti.api.repository.CertificadoRepository;
+import com.wecti.api.repository.CheckinRepository;
 import com.wecti.api.repository.InscricaoRepository;
+import com.wecti.api.repository.PontuacaoExtraRepository;
 import com.wecti.api.repository.UsuarioRepository;
 import com.wecti.api.security.CredenciaisDigitadas;
 import org.springframework.data.domain.Page;
@@ -19,7 +23,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -27,12 +33,20 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final InscricaoRepository inscricaoRepository;
+    private final CheckinRepository checkinRepository;
+    private final CertificadoRepository certificadoRepository;
+    private final PontuacaoExtraRepository pontuacaoExtraRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UsuarioService(UsuarioRepository usuarioRepository, InscricaoRepository inscricaoRepository,
+                           CheckinRepository checkinRepository, CertificadoRepository certificadoRepository,
+                           PontuacaoExtraRepository pontuacaoExtraRepository,
                            PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.inscricaoRepository = inscricaoRepository;
+        this.checkinRepository = checkinRepository;
+        this.certificadoRepository = certificadoRepository;
+        this.pontuacaoExtraRepository = pontuacaoExtraRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -218,6 +232,34 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
+    /**
+     * Exclui um cadastro <b>com tudo que depende dele</b>: certificados,
+     * check-ins, inscricoes e pontos de gincana.
+     *
+     * <p><b>Por que deixou de recusar quem tem inscricao.</b> Na WECTI
+     * 2026 varios alunos criaram uma segunda conta (com outro RGM) por
+     * nao conseguirem entrar na primeira, e acabaram pontuando nas duas.
+     * O admin precisa consolidar na conta certa, e para isso tem de
+     * apagar a errada - que, por definicao, e justamente uma que tem
+     * inscricao e presenca. A trava antiga tornava esse acerto impossivel
+     * pela aplicacao: so mexendo no banco a mao.
+     *
+     * <p><b>A ordem nao e detalhe.</b> Nenhuma das chaves estrangeiras
+     * tem {@code ON DELETE CASCADE}, entao apagar o usuario direto
+     * estoura constraint. Os dependentes saem de fora para dentro:
+     * certificados -> check-ins -> inscricoes -> pontos de gincana.
+     *
+     * <p><b>Isto apaga certificados.</b> Um PDF ja baixado deixa de
+     * validar em {@code GET /validar/{codigo}}. E irreversivel, e e o
+     * esperado: o certificado era da conta que esta sendo apagada.
+     *
+     * <p><b>Procedimento para conta duplicada</b> (a ordem importa):
+     * primeiro conferir em quais palestras a conta errada tem presenca,
+     * depois lancar essas presencas na conta certa (ver
+     * {@code PresencaManualService}), e so entao apagar. Apagar antes
+     * perde o registro do que precisa ser creditado.
+     */
+    @Transactional
     public void excluir(UUID id, UUID solicitanteId) {
         Usuario usuario = buscarPorId(id);
         // Mesma razao da trava em atualizar(): apagar a propria conta
@@ -226,10 +268,45 @@ public class UsuarioService {
         if (id.equals(solicitanteId)) {
             throw new RegraNegocioException("Voce nao pode excluir a propria conta.");
         }
-        if (inscricaoRepository.existsByAlunoId(id)) {
-            throw new RegraNegocioException("Nao e possivel excluir um usuario que ja possui inscricoes");
+        exigirQueNaoSejaAutorDeLancamentos(id);
+
+        List<UUID> inscricoes = inscricaoRepository.findByAlunoId(id).stream()
+                .map(Inscricao::getId)
+                .toList();
+        if (!inscricoes.isEmpty()) {
+            certificadoRepository.deleteByInscricaoIdIn(inscricoes);
+            checkinRepository.deleteByInscricaoIdIn(inscricoes);
+            inscricaoRepository.deleteByAlunoId(id);
         }
+        pontuacaoExtraRepository.deleteByAlunoId(id);
+
         usuarioRepository.delete(usuario);
+    }
+
+    /**
+     * Impede apagar quem <b>lancou</b> pontos ou presenca em outras
+     * pessoas - na pratica, um admin que trabalhou no evento.
+     *
+     * <p>Os lancamentos pertencem aos alunos premiados, nao a quem
+     * lancou: apaga-los junto tiraria pontos e presenca de terceiros, que
+     * nao tem nada a ver com a conta sendo removida. E
+     * {@code pontuacoes_extras.criado_por_id} e NOT NULL, entao nem
+     * desvincular da para fazer sem mudar o schema.
+     *
+     * <p>Nao atrapalha o caso que motivou a exclusao: aluno nao lanca
+     * nada em ninguem.
+     */
+    private void exigirQueNaoSejaAutorDeLancamentos(UUID id) {
+        if (pontuacaoExtraRepository.existsByCriadoPorId(id)) {
+            throw new RegraNegocioException(
+                    "Este usuario ja lancou pontos para outros alunos. Apaga-lo apagaria esses "
+                            + "lancamentos junto. Transfira ou remova os lancamentos antes.");
+        }
+        if (checkinRepository.existsByRegistradoPorId(id)) {
+            throw new RegraNegocioException(
+                    "Este usuario ja registrou presenca de outros alunos. Apaga-lo apagaria "
+                            + "essas presencas junto.");
+        }
     }
 
     private void validarIdentificadoresObrigatorios(NovoUsuarioRequest request) {
