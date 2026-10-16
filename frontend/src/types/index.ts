@@ -303,3 +303,59 @@ export interface JwtPayload {
   iat: number;
   exp: number;
 }
+
+// --- Conversão de pontuação em nota -----------------------------------
+// O aluno reparte a pontuação do WECTI entre as turmas em que estuda;
+// 1000 pontos viram 1,0 de nota, com teto de 2,0. Ver
+// DistribuicaoPontuacaoService no backend.
+
+export type TurnoDisciplina = 'MANHA' | 'NOITE';
+
+/** Uma turma do catálogo da coordenação. Turma, não disciplina: o mesmo
+ *  código aparece várias vezes, uma por turno/dia/professor - e é a
+ *  turma que o aluno escolhe, já que a nota vai para um professor. */
+export interface Disciplina {
+  id: string;
+  codigo: string;
+  nome: string;
+  turno: TurnoDisciplina;
+  dia_semana: string;
+  professor: string;
+}
+
+/** Uma linha da distribuição, com a turma e a nota já resolvidas. */
+export interface ItemDistribuicao {
+  disciplina_id: string;
+  codigo: string;
+  disciplina: string;
+  turno: TurnoDisciplina;
+  dia_semana: string;
+  professor: string;
+  pontos: number;
+  nota: number;
+}
+
+/** A distribuição do aluno com a conta fechada. Os três números vêm
+ *  prontos do servidor: a tela não refaz a conta do teto, senão a regra
+ *  viveria em dois lugares. */
+export interface Distribuicao {
+  /** Pontuação dele, já aparada no teto de 2000. */
+  limite: number;
+  distribuido: number;
+  /** `limite - distribuido`, nunca negativo. */
+  restante: number;
+  /** `restante === 0`: só então sai o comprovante. */
+  completa: boolean;
+  nota_total: number;
+  pontos_por_nota: number;
+  itens: ItemDistribuicao[];
+}
+
+/** Linha da consulta do admin: um aluno e como ele repartiu. */
+export interface DistribuicaoDoAluno {
+  aluno_nome: string;
+  aluno_rgm: string | null;
+  total_pontos: number;
+  total_nota: number;
+  itens: ItemDistribuicao[];
+}

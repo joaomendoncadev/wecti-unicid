@@ -101,6 +101,23 @@ app:
     # Gincana (pontuacao-extra, lancada a mao pelo admin) fica de fora
     # deste teto - e premiacao, nao pontuacao de palestra.
     limite-eventos: ${PONTUACAO_LIMITE_EVENTOS:2000}
+  distribuicao:
+    # Conversao da pontuacao do WECTI em nota, a pedido do professor
+    # (outubro de 2026): o aluno escolhe em quais turmas os pontos dele
+    # viram decimo de nota. Ver RegraDistribuicao.
+    #
+    # Quantos pontos valem 1,0 de nota. Com 1000: 2000 pontos = 2,0;
+    # 1500 = 1,5; 300 = 0,3.
+    pontos-por-nota: ${DISTRIBUICAO_PONTOS_POR_NOTA:1000}
+    # Teto do que da para converter. 2,0 e a nota maxima, entao quem
+    # passou de 2000 pontos distribui 2000 e nao mais.
+    #
+    # Configuracao PROPRIA, separada de pontuacao.limite-eventos, embora
+    # as duas valham 2000 hoje: uma limita o que da para GANHAR em
+    # palestra, a outra o que da para CONVERTER em nota. Se o professor
+    # soltar o teto de ganho, o teto da nota provavelmente continua 2,0 -
+    # com um parametro so, mexer em um mexeria no outro sem querer.
+    limite-pontos: ${DISTRIBUICAO_LIMITE_PONTOS:2000}
   rate-limit:
     # Trava forca bruta no login e no "esqueci minha senha". O limite e
     # por CONTA (ver LimiteTentativasPorConta), nao por IP.

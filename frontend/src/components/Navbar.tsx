@@ -30,6 +30,7 @@ const MENU_ADMIN: ItemMenu[] = [
   { to: '/admin/inscritos', label: 'Inscritos' },
   { to: '/admin/checkin', label: 'Check-in' },
   { to: '/admin/ranking', label: 'Ranking' },
+  { to: '/admin/distribuicoes', label: 'Notas' },
 ];
 
 export default function Navbar() {

@@ -159,6 +159,42 @@ confirmar de novo.
   não pontuação de palestra). A conta inteira vive em `RegraPontuacao`,
   usada pela tela individual e pelo ranking - um número diferente nos dois
   lugares derrubaria a confiança na competição.
+- **Distribuição de pontuação em nota.** O aluno troca os pontos do
+  WECTI por décimo de nota nas matérias que escolher, na aba Pontuação →
+  "Distribuir pontuação". Ver `DistribuicaoPontuacaoService` e
+  `RegraDistribuicao`.
+
+  **A conversão**: `app.distribuicao.pontos-por-nota` (padrão **1000**)
+  pontos valem 1,0 — 2000 = 2,0; 1500 = 1,5; 300 = 0,3.
+
+  **O teto**: `app.distribuicao.limite-pontos` (padrão **2000**), porque
+  2,0 é a nota máxima. Quem tem 2300 distribui 2000; quem tem 1300
+  distribui 1300, repartidos como quiser entre quantas matérias quiser.
+
+  > Esse teto é configuração **própria**, separada de
+  > `app.pontuacao.limite-eventos`, embora as duas valham 2000 hoje. Uma
+  > limita o que dá para **ganhar** em palestra, a outra o que dá para
+  > **converter** em nota. Com um parâmetro só, mexer em um mexeria no
+  > outro sem querer.
+
+  **Usar tudo é a regra, mas não trava o salvamento.** Enquanto a edição
+  está aberta o aluno salva parcial e volta depois — exigir o total
+  exato obrigaria a decidir as 131 turmas numa sentada só. O que falta
+  aparece como `restante`, e é `completa` (restante zero) que libera o
+  comprovante impresso. *O professor ainda vai definir quando a edição
+  fecha.*
+
+  **Guarda pontos, não nota**: a nota é derivada na leitura. Gravar a
+  nota convertida criaria duas fontes de verdade para o mesmo número.
+
+  **O catálogo de turmas** entra por migration (V9, 131 turmas da
+  planilha da coordenação) e não tem tela de cadastro — planilha nova
+  vira migration nova. A unidade é a **turma** (`código + turno + dia +
+  professor`), não a disciplina: o mesmo código aparece várias vezes, e a
+  nota é entregue a um professor específico.
+
+  O admin consulta tudo em `/admin/distribuicoes` (menu "Notas"), com
+  RGM, código, disciplina, professor, período e nota.
 - **Ranking: só admin.** O aluno vê a própria pontuação (`/me/pontuacao`),
   não a classificação da turma. `GET /ranking` exige ADMIN no
   `SecurityConfig` - a restrição é do backend, não só do menu.
@@ -182,8 +218,9 @@ confirmar de novo.
   acesso direto ao banco resolveria. Rebaixar **outro** admin é
   permitido: isso sempre deixa pelo menos um de pé, que é ele mesmo.
 - **Excluir usuário apaga tudo que depende dele**: inscrições,
-  check-ins, certificados e pontos de gincana. Irreversível — um
-  certificado já baixado deixa de validar em `/validar/{codigo}`.
+  check-ins, certificados, pontos de gincana e a distribuição de
+  pontuação em nota. Irreversível — um certificado já baixado deixa de
+  validar em `/validar/{codigo}`.
 
   **Aluno com inscrição também é excluído.** A recusa antiga ("não é
   possível excluir um usuário que já possui inscrições") foi removida.
@@ -196,7 +233,9 @@ confirmar de novo.
 
   A ordem da remoção não é detalhe: nenhuma FK tem `ON DELETE CASCADE`,
   então os dependentes saem de fora para dentro (certificados →
-  check-ins → inscrições → pontos de gincana) ou o banco recusa.
+  check-ins → inscrições → pontos de gincana → distribuição) ou o banco
+  recusa. **Tabela nova com FK para `usuarios` tem de entrar nessa
+  lista** — foi o que aconteceu com `distribuicoes_pontuacao` na V9.
 
   **Procedimento para conta duplicada** — a ordem importa: conferir em
   quais palestras a conta errada tem presença, lançar essas presenças na

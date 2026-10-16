@@ -14,6 +14,7 @@ import com.wecti.api.exception.RecursoNaoEncontradoException;
 import com.wecti.api.exception.RegraNegocioException;
 import com.wecti.api.repository.CertificadoRepository;
 import com.wecti.api.repository.CheckinRepository;
+import com.wecti.api.repository.DistribuicaoPontuacaoRepository;
 import com.wecti.api.repository.InscricaoRepository;
 import com.wecti.api.repository.PontuacaoExtraRepository;
 import com.wecti.api.repository.UsuarioRepository;
@@ -36,17 +37,20 @@ public class UsuarioService {
     private final CheckinRepository checkinRepository;
     private final CertificadoRepository certificadoRepository;
     private final PontuacaoExtraRepository pontuacaoExtraRepository;
+    private final DistribuicaoPontuacaoRepository distribuicaoRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UsuarioService(UsuarioRepository usuarioRepository, InscricaoRepository inscricaoRepository,
                            CheckinRepository checkinRepository, CertificadoRepository certificadoRepository,
                            PontuacaoExtraRepository pontuacaoExtraRepository,
+                           DistribuicaoPontuacaoRepository distribuicaoRepository,
                            PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.inscricaoRepository = inscricaoRepository;
         this.checkinRepository = checkinRepository;
         this.certificadoRepository = certificadoRepository;
         this.pontuacaoExtraRepository = pontuacaoExtraRepository;
+        this.distribuicaoRepository = distribuicaoRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -234,7 +238,8 @@ public class UsuarioService {
 
     /**
      * Exclui um cadastro <b>com tudo que depende dele</b>: certificados,
-     * check-ins, inscricoes e pontos de gincana.
+     * check-ins, inscricoes, pontos de gincana e a distribuicao de
+     * pontuacao em nota.
      *
      * <p><b>Por que deixou de recusar quem tem inscricao.</b> Na WECTI
      * 2026 varios alunos criaram uma segunda conta (com outro RGM) por
@@ -279,6 +284,10 @@ public class UsuarioService {
             inscricaoRepository.deleteByAlunoId(id);
         }
         pontuacaoExtraRepository.deleteByAlunoId(id);
+        // A distribuicao de pontuacao em nota tambem aponta para o aluno
+        // (FK aluno_id, criada na V9). Sem apagar aqui, excluir um aluno
+        // que ja distribuiu volta a quebrar por constraint.
+        distribuicaoRepository.deleteByAlunoId(id);
 
         usuarioRepository.delete(usuario);
     }

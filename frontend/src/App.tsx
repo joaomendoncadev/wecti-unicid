@@ -20,6 +20,7 @@ import AdminUsuariosPage from './pages/admin/AdminUsuariosPage';
 import AdminCheckinPage from './pages/admin/AdminCheckinPage';
 import AdminInscritosPage from './pages/admin/AdminInscritosPage';
 import AdminRankingPage from './pages/admin/AdminRankingPage';
+import AdminDistribuicoesPage from './pages/admin/AdminDistribuicoesPage';
 import { homeDoPerfil } from './utils/rotas';
 import type { Perfil } from './types';
 
@@ -138,6 +139,14 @@ function AppRoutes() {
         element={
           <RotaPrivada perfis={['ADMIN']}>
             <AdminInscritosPage />
+          </RotaPrivada>
+        }
+      />
+      <Route
+        path="/admin/distribuicoes"
+        element={
+          <RotaPrivada perfis={['ADMIN']}>
+            <AdminDistribuicoesPage />
           </RotaPrivada>
         }
       />

@@ -1083,6 +1083,130 @@ paths:
         '403':
           description: Perfil sem permissão (aluno)
 
+  /disciplinas:
+    get:
+      tags: [Distribuicao]
+      summary: Catálogo de turmas para distribuir a pontuação
+      description: >
+        As turmas em que o aluno pode converter pontuação do WECTI em
+        nota, importadas da planilha da coordenação (migration V9, 131
+        turmas).
+
+
+        **Turma, não disciplina:** o mesmo `codigo` aparece várias vezes,
+        uma por combinação de turno, dia e professor. Como a nota é
+        entregue a um professor específico, o aluno escolhe a turma dele,
+        não só a matéria.
+
+
+        Sem paginação de propósito: o aluno percorre a lista escolhendo as
+        turmas dele, e trocar de página no meio perderia o que já digitou
+        nas outras. O filtro resolve o mesmo problema sem esse custo.
+      parameters:
+        - name: turno
+          in: query
+          schema:
+            type: string
+            enum: [MANHA, NOITE]
+        - name: busca
+          in: query
+          description: Texto livre em nome da matéria, código ou professor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Turmas do catálogo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Disciplina'
+
+  /me/distribuicao:
+    get:
+      tags: [Distribuicao]
+      summary: A distribuição do aluno autenticado (somente aluno)
+      description: >
+        O que ele já distribuiu, com `limite`, `restante` e a nota
+        correspondente. Os números vêm prontos do servidor: a tela não
+        refaz a conta do teto, senão a regra viveria em dois lugares.
+      responses:
+        '200':
+          description: Distribuição atual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Distribuicao'
+        '403':
+          description: Perfil sem permissão (admin)
+    put:
+      tags: [Distribuicao]
+      summary: Substitui a distribuição inteira (somente aluno)
+      description: >
+        O corpo traz o estado **completo** da distribuição: turma que não
+        estiver na lista é turma que o aluno zerou. O id do aluno sai do
+        token, nunca do corpo.
+
+
+        **Regras.** O total não pode passar de `limite`, que é a pontuação
+        do aluno aparada em `app.distribuicao.limite-pontos` (2000, porque
+        2,0 é a nota máxima). A conversão é
+        `app.distribuicao.pontos-por-nota` (1000) pontos para cada 1,0.
+
+
+        Salvar **parcial é permitido** de propósito, enquanto a edição
+        está aberta: exigir o total exato obrigaria o aluno a decidir as
+        131 turmas de uma sentada só. A regra "usar tudo" aparece como
+        `restante` na resposta, e é o que libera o comprovante
+        (`completa`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalvarDistribuicao'
+      responses:
+        '200':
+          description: Distribuição salva, já com a conta refeita
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Distribuicao'
+        '400':
+          description: Turma repetida, pontos não positivos, ou o alvo não é aluno
+        '403':
+          description: Perfil sem permissão (admin)
+        '404':
+          description: Uma ou mais turmas informadas não existem
+        '422':
+          description: O total passa do limite disponível
+
+  /distribuicoes:
+    get:
+      tags: [Distribuicao]
+      summary: Distribuição de todos os alunos (somente admin)
+      description: >
+        Consulta da coordenação para lançar as notas: traz RGM, código,
+        disciplina, professor, período e a nota de cada linha. Agrupado
+        por aluno, porque conferir se a soma dele fecha exige ver as
+        linhas juntas.
+
+
+        Somente ADMIN, pela mesma razão do ranking: o aluno vê o que ele
+        próprio fez, não o que os colegas fizeram.
+      responses:
+        '200':
+          description: Distribuição por aluno
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DistribuicaoDoAluno'
+        '403':
+          description: Perfil sem permissão (aluno)
+
   /pontuacao-extra:
     post:
       tags: [Pontuacao]
@@ -1570,6 +1694,111 @@ components:
           type: string
           nullable: true
           description: Motivo informado pelo admin; nulo quando veio do QR code.
+
+    Disciplina:
+      type: object
+      description: >
+        Uma turma do catálogo da coordenação. O mesmo `codigo` aparece
+        várias vezes, uma por turno/dia/professor.
+      properties:
+        id:
+          type: string
+          format: uuid
+        codigo:
+          type: string
+        nome:
+          type: string
+        turno:
+          type: string
+          enum: [MANHA, NOITE]
+        dia_semana:
+          type: string
+        professor:
+          type: string
+
+    ItemDistribuicao:
+      type: object
+      description: Uma linha da distribuição, com a turma e a nota resolvidas.
+      properties:
+        disciplina_id:
+          type: string
+          format: uuid
+        codigo:
+          type: string
+        disciplina:
+          type: string
+        turno:
+          type: string
+          enum: [MANHA, NOITE]
+        dia_semana:
+          type: string
+        professor:
+          type: string
+        pontos:
+          type: integer
+        nota:
+          type: number
+          description: pontos ÷ pontos_por_nota, com até 3 casas
+
+    Distribuicao:
+      type: object
+      properties:
+        limite:
+          type: integer
+          description: Pontuação do aluno, já aparada no teto de 2000
+        distribuido:
+          type: integer
+        restante:
+          type: integer
+          description: limite - distribuido, nunca negativo
+        completa:
+          type: boolean
+          description: restante == 0; só então sai o comprovante
+        nota_total:
+          type: number
+        pontos_por_nota:
+          type: integer
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemDistribuicao'
+
+    DistribuicaoDoAluno:
+      type: object
+      properties:
+        aluno_nome:
+          type: string
+        aluno_rgm:
+          type: string
+          nullable: true
+        total_pontos:
+          type: integer
+        total_nota:
+          type: number
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemDistribuicao'
+
+    SalvarDistribuicao:
+      type: object
+      required: [itens]
+      properties:
+        itens:
+          type: array
+          description: >
+            Estado COMPLETO da distribuição. Lista vazia é válida - é como
+            o aluno zera tudo e recomeça.
+          items:
+            type: object
+            required: [disciplina_id, pontos]
+            properties:
+              disciplina_id:
+                type: string
+                format: uuid
+              pontos:
+                type: integer
+                minimum: 1
 
     NovaPresencaManual:
       type: object

@@ -133,6 +133,18 @@ public class SecurityConfig {
                         .requestMatchers("/me/pontuacao").hasRole("ALUNO")
                         .requestMatchers("/pontuacao/aluno/*").hasRole("ADMIN")
 
+                        // Conversao de pontuacao em nota. O catalogo de turmas e
+                        // so leitura e serve as duas telas (a do aluno que
+                        // distribui e a do admin que confere), entao basta estar
+                        // autenticado. Ja "/me/distribuicao" e do ALUNO: o id sai
+                        // do token, nunca do corpo, senao um aluno distribuiria a
+                        // pontuacao de outro. E "/distribuicoes" (a turma inteira)
+                        // e do ADMIN, pela mesma razao do ranking - o aluno ve o
+                        // que ele proprio fez, nao o que os colegas fizeram.
+                        .requestMatchers(HttpMethod.GET, "/disciplinas").authenticated()
+                        .requestMatchers("/me/distribuicao").hasRole("ALUNO")
+                        .requestMatchers(HttpMethod.GET, "/distribuicoes").hasRole("ADMIN")
+
                         // Ranking: so o admin. O aluno via a classificacao da
                         // turma inteira ate setembro de 2026, quando o
                         // professor pediu para tirar - o aluno continua vendo

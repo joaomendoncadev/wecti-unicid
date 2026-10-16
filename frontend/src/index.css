@@ -101,3 +101,26 @@
     animation: none;
   }
 }
+
+/* Impressão do comprovante de distribuição de pontuação.
+ *
+ * Quando a folha está aberta, só ela vai para o papel: o resto da
+ * aplicação (navbar, botões, fundo escuro) é escondido. Sem isto, o
+ * navegador imprimiria a tela inteira, com o tema escuro gastando tinta
+ * e saindo ilegível em impressora monocromática. */
+@media print {
+  body:has(#comprovante-distribuicao) > *:not(:has(#comprovante-distribuicao)) {
+    display: none !important;
+  }
+
+  #comprovante-distribuicao {
+    position: absolute;
+    inset: 0;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  @page {
+    margin: 1.5cm;
+  }
+}

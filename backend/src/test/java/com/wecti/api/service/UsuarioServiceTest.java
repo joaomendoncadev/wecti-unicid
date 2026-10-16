@@ -10,6 +10,7 @@ import com.wecti.api.exception.RegraNegocioException;
 import com.wecti.api.domain.Inscricao;
 import com.wecti.api.repository.CertificadoRepository;
 import com.wecti.api.repository.CheckinRepository;
+import com.wecti.api.repository.DistribuicaoPontuacaoRepository;
 import com.wecti.api.repository.InscricaoRepository;
 import com.wecti.api.repository.PontuacaoExtraRepository;
 import com.wecti.api.repository.UsuarioRepository;
@@ -57,6 +58,7 @@ class UsuarioServiceTest {
     @Mock private CheckinRepository checkinRepository;
     @Mock private CertificadoRepository certificadoRepository;
     @Mock private PontuacaoExtraRepository pontuacaoExtraRepository;
+    @Mock private DistribuicaoPontuacaoRepository distribuicaoRepository;
     @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks private UsuarioService usuarioService;
@@ -275,12 +277,16 @@ class UsuarioServiceTest {
 
             // A ordem e o que importa: nenhuma FK tem ON DELETE CASCADE,
             // entao apagar de dentro para fora estoura constraint.
-            var ordem = inOrder(certificadoRepository, checkinRepository,
-                    inscricaoRepository, pontuacaoExtraRepository, usuarioRepository);
+            var ordem = inOrder(certificadoRepository, checkinRepository, inscricaoRepository,
+                    pontuacaoExtraRepository, distribuicaoRepository, usuarioRepository);
             ordem.verify(certificadoRepository).deleteByInscricaoIdIn(List.of(inscricaoA, inscricaoB));
             ordem.verify(checkinRepository).deleteByInscricaoIdIn(List.of(inscricaoA, inscricaoB));
             ordem.verify(inscricaoRepository).deleteByAlunoId(ALUNO_ID);
             ordem.verify(pontuacaoExtraRepository).deleteByAlunoId(ALUNO_ID);
+            // A distribuicao de pontuacao em nota tambem aponta para o
+            // aluno (FK criada na V9): sem este delete, excluir um aluno
+            // que ja distribuiu volta a quebrar por constraint.
+            ordem.verify(distribuicaoRepository).deleteByAlunoId(ALUNO_ID);
             ordem.verify(usuarioRepository).delete(any(Usuario.class));
         }
 
