@@ -1,8 +1,13 @@
 # WECTI - Backend
 
-Esqueleto inicial da API REST do WECTI. Cobre a estrutura do projeto, as
-entidades JPA e a configuração de banco - ainda não implementa as regras
-de negócio dos endpoints (isso é a Fase 1, ver roadmap do projeto).
+API REST do WECTI - a única fonte de verdade do sistema; nenhum cliente
+acessa o banco direto. **Em produção** desde setembro de 2026: 38
+operações em 27 rotas, autenticação JWT com autorização por perfil, 9
+migrations versionadas e 164 testes automatizados.
+
+As regras de negócio e o porquê de cada decisão estão no
+[`CLAUDE.md`](../CLAUDE.md) da raiz; o contrato dos endpoints, em
+[`docs/openapi.yaml`](../docs/openapi.yaml).
 
 Construído sobre Spring Boot 4.1 (não 3.x - a última linha 3.x sai de
 suporte em 30/06/2026, não fazia sentido começar um projeto novo nela).
@@ -10,9 +15,8 @@ O Boot 4 trouxe mudanças de quebra reais (nomes de starter, Spring
 Security com CSRF habilitado por padrão, etc.) - essas adaptações estão
 comentadas no topo do `pom.xml`.
 
-**Importante**: este projeto não foi compilado antes de ser entregue (o
-ambiente usado para gerá-lo não tem acesso ao Maven Central). Rode
-`mvn clean compile` como primeiro passo ao clonar, antes de mais nada.
+Ao clonar, rode `mvn clean compile` antes de mais nada, para baixar as
+dependências.
 
 ## Pré-requisitos
 

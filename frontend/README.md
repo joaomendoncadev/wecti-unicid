@@ -6,7 +6,7 @@ banco de dados.
 
 ## Stack
 
-- React 18 + Vite + TypeScript
+- React 19 + Vite + TypeScript
 - Tailwind CSS v4
 - React Router DOM v6
 - Axios (com interceptor de JWT)

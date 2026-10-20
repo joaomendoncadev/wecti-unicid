@@ -299,17 +299,21 @@ confirmar de novo.
 
 ## Autenticação e autorização
 
-Autenticação por JWT stateless (`security/JwtService`,
-`JwtAuthenticationFilter`). Quem pode chamar cada rota fica decidido em
-**um lugar só**: as regras `requestMatchers(...).hasRole(...)` do
-`SecurityConfig`. Toda restrição por perfil vive no backend - esconder o
-item do menu no frontend é conveniência, não segurança. Endpoint novo
+**Implementadas e em produção.** Login com JWT (`JwtService`,
+`JwtAuthenticationFilter`), senha em BCrypt, e autorização por perfil
+rota a rota no `SecurityConfig`: cada `requestMatchers` diz quem pode
+chamar o quê, e a maioria exige perfil com `hasRole`. Endpoint novo
 precisa de regra explícita lá.
+
+> Uma versão anterior deste arquivo dizia que isso era "tarefa da Fase 1"
+> e que o `SecurityConfig` liberava tudo com `permitAll`. **Era verdade
+> no esqueleto inicial, e ficou desatualizado** - o texto sobreviveu meses
+> depois de a autenticação estar no ar, num arquivo da raiz do
+> repositório, que é público.
+
+A restrição vive no backend, nunca só no menu do frontend: esconder um
+link não impede ninguém de chamar a API direto.
 
 Quando a rota age sobre "a própria pessoa" (`/me/...`, `PUT
 /usuarios/me`), o id vem do token (`@AuthenticationPrincipal
 AuthenticatedUser`), nunca do caminho ou do corpo.
-
-> Uma versão anterior deste arquivo dizia que o JWT "não estava
-> implementado" e que o `SecurityConfig` liberava tudo (`permitAll`).
-> Isso era o esqueleto inicial e deixou de valer há tempos.
