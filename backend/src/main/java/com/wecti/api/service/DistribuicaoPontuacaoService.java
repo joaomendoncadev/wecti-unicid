@@ -17,6 +17,7 @@ import com.wecti.api.repository.UsuarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -56,17 +57,20 @@ public class DistribuicaoPontuacaoService {
     private final UsuarioRepository usuarioRepository;
     private final PontuacaoService pontuacaoService;
     private final RegraDistribuicao regra;
+    private final PrazoDistribuicao prazo;
 
     public DistribuicaoPontuacaoService(DistribuicaoPontuacaoRepository repository,
                                          DisciplinaRepository disciplinaRepository,
                                          UsuarioRepository usuarioRepository,
                                          PontuacaoService pontuacaoService,
-                                         RegraDistribuicao regra) {
+                                         RegraDistribuicao regra,
+                                         PrazoDistribuicao prazo) {
         this.repository = repository;
         this.disciplinaRepository = disciplinaRepository;
         this.usuarioRepository = usuarioRepository;
         this.pontuacaoService = pontuacaoService;
         this.regra = regra;
+        this.prazo = prazo;
     }
 
     /** Quanto este aluno pode distribuir no total. */
@@ -95,6 +99,9 @@ public class DistribuicaoPontuacaoService {
                 distribuido == limite && limite > 0,
                 regra.notaDe(distribuido),
                 regra.pontosPorNota(),
+                prazo.estaAberto(),
+                prazo.inicio(),
+                prazo.fim(),
                 linhas.stream()
                         .sorted(Comparator.comparing(d -> d.getDisciplina().getNome()))
                         .map(d -> ItemDistribuicaoResponse.de(d, regra.notaDe(d.getPontos())))
@@ -149,6 +156,12 @@ public class DistribuicaoPontuacaoService {
      */
     @Transactional
     public List<DistribuicaoPontuacao> salvar(UUID alunoId, List<ItemDistribuicaoRequest> itens) {
+        // A trava vive aqui, e nao so no botao da tela: esconder o botao
+        // nao impede ninguem de chamar a API direto, e depois do prazo os
+        // professores ja estao lancando as notas no diario - uma
+        // alteracao a essa altura mudaria um numero que ja saiu em papel.
+        exigirPrazoAberto();
+
         Usuario aluno = usuarioRepository.findById(alunoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno nao encontrado"));
         if (aluno.getPerfil() != Perfil.ALUNO) {
@@ -184,6 +197,23 @@ public class DistribuicaoPontuacaoService {
                         .build())
                 .toList();
         return repository.saveAll(novas);
+    }
+
+    /**
+     * Recusa fora da janela de lancamento, dizendo qual e o prazo - "nao
+     * foi possivel salvar" sem explicacao faria o aluno achar que o
+     * sistema quebrou, quando na verdade o periodo acabou.
+     */
+    private void exigirPrazoAberto() {
+        if (prazo.estaAberto()) {
+            return;
+        }
+        var formato = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        throw new RegraNegocioException(
+                "O periodo para lancamento da pontuacao vai de " + prazo.inicio().format(formato)
+                        + " a " + prazo.fim().format(formato)
+                        + ". Fora dele nao e possivel distribuir nem editar - mas voce continua"
+                        + " podendo imprimir o comprovante do que ja distribuiu.");
     }
 
     /**

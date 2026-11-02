@@ -24,21 +24,35 @@ lá primeiro, antes de implementar.
 
 ## Perfis de usuário
 
-`admin`, `aluno` (enum `Perfil`) são os únicos perfis ativos nesta
-versão - confirmado com o professor (stakeholder do projeto): não existe
-perfil "operador", e o perfil `professor` (que existia numa versão
-anterior) não é mais oferecido no cadastro nem tem tela própria. Ele
-continua existindo no enum só por compatibilidade com cadastros que já
-existiam no banco antes dessa mudança - uma conta assim ainda consegue
-logar, mas não tem acesso a nada além do que qualquer usuário autenticado
-tem (não é redirecionada num loop - ver `homeDoPerfil` no frontend e o
-comentário em `SecurityConfig.java`). Não inventar volta desse perfil sem
-confirmar de novo.
+`admin`, `professor` e `aluno` (enum `Perfil`). Não existe perfil
+"operador".
 
-- **Admin**: cadastra eventos e usuários (só Aluno ou Admin) e edita
-  qualquer cadastro, com as travas descritas abaixo; gera os QR codes de
-  check-in/check-out; acompanha a lista de inscritos (nome e e-mail) e
-  de presença; lança pontos de gincana; é o único que vê o ranking.
+> **O `professor` voltou em novembro de 2026.** Ele existiu numa versão
+> antiga, foi removido quando o stakeholder confirmou que não precisava,
+> e este arquivo passou a dizer "não inventar volta desse perfil sem
+> confirmar de novo". Ele confirmou de novo, no sentido inverso: pediu
+> *"login como professor com acesso a usuários e notas apenas"*, para a
+> equipe docente baixar as notas sem depender do admin.
+>
+> Uma versão anterior deste arquivo também afirmava que o `professor`
+> "continua existindo no enum só por compatibilidade". **Era falso** — o
+> enum tinha só `ADMIN` e `ALUNO` quando isso foi escrito.
+
+- **Admin**: cadastra eventos e usuários (Aluno, Professor ou Admin) e
+  edita qualquer cadastro, com as travas descritas abaixo; gera os QR
+  codes de check-in/check-out; acompanha a lista de inscritos (nome e
+  e-mail) e de presença; lança pontos de gincana; é o único que vê o
+  ranking.
+- **Professor**: **somente leitura**, em duas telas — Usuários (para
+  saber de quem é o RGM que aparece nas notas) e Notas
+  (`/admin/distribuicoes`), que ele filtra pelas turmas dele e exporta em
+  CSV para lançar no diário. Entra direto em Notas (`homeDoPerfil`).
+
+  Não cria, não edita e não exclui nada — decisão tomada junto com o
+  pedido: excluir aluno apaga inscrições, presenças e certificados em
+  cascata e sem desfazer, e não há motivo para esse poder estar numa
+  conta que só confere RGM e baixa CSV. CPF é obrigatório, como no admin,
+  porque é o identificador do "esqueci minha senha".
 - **Aluno**: se autocadastra (nome, RGM, email, senha e curso opcional -
   ver `CadastroAlunoRequest`) e depois pode corrigir o próprio cadastro;
   escolhe os eventos em que participa, confirma a própria presença
@@ -181,8 +195,22 @@ confirmar de novo.
   está aberta o aluno salva parcial e volta depois — exigir o total
   exato obrigaria a decidir as 131 turmas numa sentada só. O que falta
   aparece como `restante`, e é `completa` (restante zero) que libera o
-  comprovante impresso. *O professor ainda vai definir quando a edição
-  fecha.*
+  comprovante impresso.
+
+  **Período de lançamento: 26/10/2026 a 06/12/2026**
+  (`app.distribuicao.inicio` / `.fim`, ver `PrazoDistribuicao`). Fora
+  dele o aluno não distribui nem edita; **a impressão continua
+  liberada**, para os professores baixarem as notas e lançarem sabendo
+  que o número não muda mais.
+
+  O **dia do fim está dentro** da janela: fecha às 23:59:59 de 06/12, não
+  às 00:00 — fechar na virada roubaria um dia de quem deixou para a
+  última hora. A trava é do backend (`salvar` recusa com 422), não só do
+  botão: esconder o botão não impede ninguém de chamar a API.
+
+  Depois do prazo, o comprovante sai **mesmo com distribuição
+  incompleta**. Quem distribuiu 900 de 1500 não tem mais como completar,
+  e negar o papel o deixaria sem como provar os 0,9 que conquistou.
 
   **Guarda pontos, não nota**: a nota é derivada na leitura. Gravar a
   nota convertida criaria duas fontes de verdade para o mesmo número.

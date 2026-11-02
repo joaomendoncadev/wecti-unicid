@@ -118,6 +118,17 @@ app:
     # soltar o teto de ganho, o teto da nota provavelmente continua 2,0 -
     # com um parametro so, mexer em um mexeria no outro sem querer.
     limite-pontos: ${DISTRIBUICAO_LIMITE_PONTOS:2000}
+    # Janela em que o aluno pode distribuir e editar - "Periodo para
+    # lancamento da pontuacao 26/10/26 a 06/12/26", a pedido do
+    # professor (novembro de 2026). Ver PrazoDistribuicao.
+    #
+    # O dia do FIM esta dentro da janela: fecha as 23:59:59 de 06/12, e
+    # nao as 00:00, senao quem deixou para a ultima hora perderia um dia.
+    #
+    # Depois do fim, so a IMPRESSAO continua liberada: os professores
+    # baixam as notas e lancam sabendo que o numero nao muda mais.
+    inicio: ${DISTRIBUICAO_INICIO:2026-10-26}
+    fim: ${DISTRIBUICAO_FIM:2026-12-06}
   rate-limit:
     # Trava forca bruta no login e no "esqueci minha senha". O limite e
     # por CONTA (ver LimiteTentativasPorConta), nao por IP.

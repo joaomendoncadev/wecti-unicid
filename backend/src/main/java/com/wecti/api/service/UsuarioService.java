@@ -97,7 +97,7 @@ public class UsuarioService {
                 .email(CredenciaisDigitadas.email(request.email()))
                 .perfil(request.perfil())
                 .rgm(request.perfil() == Perfil.ALUNO ? request.rgm() : null)
-                .cpf(request.perfil() == Perfil.ADMIN ? request.cpf() : null)
+                .cpf(request.perfil() != Perfil.ALUNO ? request.cpf() : null)
                 .curso(request.perfil() == Perfil.ALUNO ? request.curso() : null)
                 .senha(passwordEncoder.encode(senhaProvisoria))
                 .build();
@@ -136,7 +136,7 @@ public class UsuarioService {
         usuario.setEmail(CredenciaisDigitadas.email(request.email()));
         usuario.setPerfil(request.perfil());
         usuario.setRgm(request.perfil() == Perfil.ALUNO ? request.rgm() : null);
-        usuario.setCpf(request.perfil() == Perfil.ADMIN ? request.cpf() : null);
+        usuario.setCpf(request.perfil() != Perfil.ALUNO ? request.cpf() : null);
         usuario.setCurso(request.perfil() == Perfil.ALUNO ? request.curso() : null);
 
         return usuarioRepository.save(usuario);
@@ -150,9 +150,9 @@ public class UsuarioService {
      * dados dele.
      *
      * <p>Cada perfil mexe no que e seu, com a mesma regra de {@link #criar}:
-     * ALUNO em rgm e curso, ADMIN em cpf. O campo do outro perfil vem no
-     * corpo mas e ignorado, entao nao ha como um aluno se dar um CPF nem
-     * um admin se dar um RGM.
+     * ALUNO em rgm e curso; ADMIN e PROFESSOR em cpf. O campo do outro
+     * perfil vem no corpo mas e ignorado, entao nao ha como um aluno se
+     * dar um CPF nem um professor se dar um RGM.
      *
      * <p>Email, perfil e senha ficam de fora - ver o javadoc do DTO para
      * o motivo de cada um. Em especial, <b>o perfil nunca e tocado
@@ -170,11 +170,13 @@ public class UsuarioService {
             validarRgmUnico(request.rgm(), id);
             usuario.setRgm(request.rgm());
             usuario.setCurso(request.curso());
-        } else if (usuario.getPerfil() == Perfil.ADMIN) {
-            // Mesma exigencia de criar(): sem CPF, o admin perde o unico
-            // jeito de redefinir a propria senha (ver redefinirSenha).
+        } else {
+            // Admin e professor: mesma exigencia de criar(). Sem CPF, a
+            // pessoa perde o unico jeito de redefinir a propria senha
+            // (ver redefinirSenha, que confere CPF para quem nao e aluno).
             if (request.cpf() == null || request.cpf().isBlank()) {
-                throw new CampoInvalidoException("cpf", "CPF e obrigatorio para usuarios com perfil ADMIN");
+                throw new CampoInvalidoException("cpf",
+                        "CPF e obrigatorio para usuarios com perfil " + usuario.getPerfil());
             }
             validarCpfUnico(request.cpf(), id);
             usuario.setCpf(request.cpf());
@@ -322,13 +324,14 @@ public class UsuarioService {
         if (request.perfil() == Perfil.ALUNO && (request.rgm() == null || request.rgm().isBlank())) {
             throw new CampoInvalidoException("rgm", "RGM e obrigatorio para usuarios com perfil ALUNO");
         }
-        // CPF e obrigatorio pro Admin - e o identificador usado no
-        // "esqueci minha senha" (ver redefinirSenha); sem ele, um Admin
-        // cadastrado por outro Admin nunca teria como definir a propria
-        // senha, ja que a senha provisoria gerada no cadastro nunca e
-        // revelada pra ninguem.
-        if (request.perfil() == Perfil.ADMIN && (request.cpf() == null || request.cpf().isBlank())) {
-            throw new CampoInvalidoException("cpf", "CPF e obrigatorio para usuarios com perfil ADMIN");
+        // CPF e obrigatorio pro Admin e pro Professor - e o identificador
+        // usado no "esqueci minha senha" (ver redefinirSenha); sem ele,
+        // uma conta cadastrada por outra pessoa nunca teria como definir
+        // a propria senha, ja que a senha provisoria gerada no cadastro
+        // nunca e revelada pra ninguem.
+        if (request.perfil() != Perfil.ALUNO && (request.cpf() == null || request.cpf().isBlank())) {
+            throw new CampoInvalidoException("cpf",
+                    "CPF e obrigatorio para usuarios com perfil " + request.perfil());
         }
     }
 

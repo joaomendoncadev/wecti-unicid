@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,8 +64,11 @@ class DistribuicaoPontuacaoServiceTest {
     void preparar() {
         // RegraDistribuicao de verdade, com os valores de producao: e a
         // regra que decide limite e nota, mocka-la esvaziaria os testes.
+        // Prazo de verdade, com a janela aberta: e a regra que decide se
+        // o salvamento passa, mocka-la esvaziaria os testes de borda.
         service = new DistribuicaoPontuacaoService(repository, disciplinaRepository,
-                usuarioRepository, pontuacaoService, new RegraDistribuicao(1000, 2000));
+                usuarioRepository, pontuacaoService, new RegraDistribuicao(1000, 2000),
+                new PrazoDistribuicao(LocalDate.now().minusDays(7), LocalDate.now().plusDays(7)));
 
         aluno = Usuario.builder().id(ALUNO_ID).nome("Aluno").perfil(Perfil.ALUNO).rgm("20000001").build();
         when(usuarioRepository.findById(ALUNO_ID)).thenReturn(Optional.of(aluno));
@@ -245,6 +249,77 @@ class DistribuicaoPontuacaoServiceTest {
 
             assertThatThrownBy(() -> salvar(new ItemDistribuicaoRequest(TURMA_A, 500)))
                     .isInstanceOf(CampoInvalidoException.class);
+        }
+
+        /**
+         * Fora do periodo de lancamento, a API recusa - a trava nao pode
+         * viver so no botao da tela. Depois do prazo os professores ja
+         * estao lancando as notas no diario; uma alteracao a essa altura
+         * mudaria um numero que ja saiu em papel.
+         */
+        @Test
+        @DisplayName("recusa salvar depois que o prazo fecha")
+        void foraDoPrazo() {
+            var fechado = new DistribuicaoPontuacaoService(repository, disciplinaRepository,
+                    usuarioRepository, pontuacaoService, new RegraDistribuicao(1000, 2000),
+                    new PrazoDistribuicao(LocalDate.now().minusDays(30), LocalDate.now().minusDays(1)));
+            pontuacaoDoAluno(2000);
+
+            assertThatThrownBy(() -> fechado.salvar(ALUNO_ID,
+                    List.of(new ItemDistribuicaoRequest(TURMA_A, 500))))
+                    .isInstanceOf(RegraNegocioException.class)
+                    .hasMessageContaining("periodo para lancamento");
+
+            verify(repository, never()).saveAll(any());
+            verify(repository, never()).deleteByAlunoId(any());
+        }
+
+        @Test
+        @DisplayName("recusa salvar antes do prazo abrir")
+        void antesDoPrazo() {
+            var naoAbriu = new DistribuicaoPontuacaoService(repository, disciplinaRepository,
+                    usuarioRepository, pontuacaoService, new RegraDistribuicao(1000, 2000),
+                    new PrazoDistribuicao(LocalDate.now().plusDays(5), LocalDate.now().plusDays(40)));
+            pontuacaoDoAluno(2000);
+
+            assertThatThrownBy(() -> naoAbriu.salvar(ALUNO_ID,
+                    List.of(new ItemDistribuicaoRequest(TURMA_A, 500))))
+                    .isInstanceOf(RegraNegocioException.class);
+        }
+
+        /** A tela precisa saber se desabilita os botoes - e a leitura
+         *  continua funcionando depois do prazo, senao o aluno nem
+         *  conseguiria imprimir o comprovante. */
+        @Test
+        @DisplayName("fora do prazo ainda LE a distribuicao, com edicaoAberta falsa")
+        void leituraContinuaDepoisDoPrazo() {
+            var fechado = new DistribuicaoPontuacaoService(repository, disciplinaRepository,
+                    usuarioRepository, pontuacaoService, new RegraDistribuicao(1000, 2000),
+                    new PrazoDistribuicao(LocalDate.now().minusDays(30), LocalDate.now().minusDays(1)));
+            pontuacaoDoAluno(2000);
+            when(repository.findByAlunoId(ALUNO_ID)).thenReturn(List.of(
+                    DistribuicaoPontuacao.builder().aluno(aluno)
+                            .disciplina(turma(TURMA_A, "14362", "ALGORITMOS")).pontos(2000).build()));
+
+            var resposta = fechado.responderDoAluno(ALUNO_ID);
+
+            assertThat(resposta.edicaoAberta()).isFalse();
+            assertThat(resposta.distribuido())
+                    .as("o comprovante precisa dos dados mesmo com o prazo fechado")
+                    .isEqualTo(2000);
+            assertThat(resposta.completa()).isTrue();
+        }
+
+        @Test
+        @DisplayName("dentro do prazo, edicaoAberta e verdadeira e traz as datas")
+        void dentroDoPrazo() {
+            pontuacaoDoAluno(2000);
+
+            var resposta = service.responderDoAluno(ALUNO_ID);
+
+            assertThat(resposta.edicaoAberta()).isTrue();
+            assertThat(resposta.prazoInicio()).isEqualTo(LocalDate.now().minusDays(7));
+            assertThat(resposta.prazoFim()).isEqualTo(LocalDate.now().plusDays(7));
         }
 
         /** Salvar substitui tudo: turma que sumiu da lista foi turma que

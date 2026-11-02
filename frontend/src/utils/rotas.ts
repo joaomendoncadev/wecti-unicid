@@ -14,6 +14,9 @@ import type { Perfil } from '../types';
  */
 export function homeDoPerfil(perfil: Perfil | null): string {
   if (perfil === 'ADMIN') return '/admin/eventos';
+  // O professor só alcança Usuários e Notas; Notas é o que ele usa, então
+  // é onde ele cai ao entrar.
+  if (perfil === 'PROFESSOR') return '/admin/distribuicoes';
   if (perfil === 'ALUNO') return '/eventos';
   return '/perfil';
 }

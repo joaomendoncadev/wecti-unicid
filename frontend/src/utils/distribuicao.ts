@@ -20,6 +20,22 @@ export function formatarNota(nota: number): string {
 }
 
 /**
+ * "26/10/26 a 06/12/26" — o formato que o professor escreveu ao pedir a
+ * funcionalidade, com ano de dois dígitos.
+ *
+ * As datas chegam como `YYYY-MM-DD` e são fatiadas, não passadas por
+ * `new Date()`: o construtor interpretaria a string como UTC e, no
+ * horário de Brasília, mostraria o dia anterior.
+ */
+export function formatarPeriodo(inicio: string, fim: string): string {
+  const curta = (iso: string) => {
+    const [ano, mes, dia] = iso.slice(0, 10).split('-');
+    return `${dia}/${mes}/${ano.slice(2)}`;
+  };
+  return `${curta(inicio)} a ${curta(fim)}`;
+}
+
+/**
  * Os dias que o catálogo da coordenação usa, em ordem de semana.
  *
  * Lista fixa, e não derivada dos dados: os botões precisam ficar sempre

@@ -11,7 +11,7 @@ import { usePontuacao } from '../../hooks/usePontuacao';
 import { useAuth } from '../../context/AuthContext';
 import { buscarMinhaDistribuicao } from '../../services/distribuicao';
 import { formatarDataHora } from '../../utils/data';
-import { ROTULO_TURNO, formatarNota } from '../../utils/distribuicao';
+import { ROTULO_TURNO, formatarNota, formatarPeriodo } from '../../utils/distribuicao';
 import type { Distribuicao } from '../../types';
 
 export default function PontuacaoPage() {
@@ -47,6 +47,37 @@ export default function PontuacaoPage() {
                 <span className="font-medium text-text">{pontuacao.pontos_extras}</span> de gincanas
               </p>
             )}
+
+            {/* Período de lançamento, logo abaixo do total - é a primeira
+                coisa que o aluno precisa saber ao olhar os pontos: até
+                quando dá para transformá-los em nota. Depois do prazo o
+                aviso muda de tom, porque aí já não é informação, é
+                explicação de por que os botões sumiram. */}
+            {distribuicao && (
+              <p
+                className={`mx-auto mt-4 max-w-md rounded-lg border px-4 py-2 text-sm ${
+                  distribuicao.edicao_aberta
+                    ? 'border-border text-text-muted'
+                    : 'border-amber-500/30 bg-amber-500/5 text-amber-300'
+                }`}
+              >
+                {distribuicao.edicao_aberta ? (
+                  <>
+                    Período para lançamento da pontuação{' '}
+                    <span className="font-medium text-text">
+                      {formatarPeriodo(distribuicao.prazo_inicio, distribuicao.prazo_fim)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    O período para lançamento da pontuação (
+                    {formatarPeriodo(distribuicao.prazo_inicio, distribuicao.prazo_fim)}) foi
+                    encerrado. Não é mais possível distribuir ou editar — você ainda pode imprimir
+                    o comprovante.
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Conversão da pontuação em nota. Só aparece para quem tem o
@@ -63,17 +94,29 @@ export default function PontuacaoPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  {/* O comprovante só existe depois de distribuir tudo:
-                      entregar ao professor um papel com pontos sobrando
-                      seria entregar uma nota incompleta. */}
-                  {distribuicao.completa && (
+                  {/* Enquanto o prazo corre, o comprovante só sai com
+                      tudo distribuído: entregar um papel com pontos
+                      sobrando seria entregar uma nota incompleta, e dá
+                      para completar.
+
+                      Depois do prazo, sai de qualquer jeito — o que está
+                      lá virou definitivo, e negar o comprovante deixaria
+                      quem distribuiu 900 de 1500 sem como provar os 0,9
+                      que conquistou. */}
+                  {(distribuicao.completa ||
+                    (!distribuicao.edicao_aberta && distribuicao.distribuido > 0)) && (
                     <Button variante="outline" onClick={() => setImprimindo(true)}>
                       Imprimir comprovante
                     </Button>
                   )}
-                  <Button onClick={() => setDistribuindo(true)}>
-                    {distribuicao.itens.length > 0 ? 'Editar distribuição' : 'Distribuir pontuação'}
-                  </Button>
+                  {/* Fora do prazo o botão some, e não só desabilita: o
+                      aviso logo acima já explica o porquê, e um botão
+                      cinza sem explicação faria o aluno ficar clicando. */}
+                  {distribuicao.edicao_aberta && (
+                    <Button onClick={() => setDistribuindo(true)}>
+                      {distribuicao.itens.length > 0 ? 'Editar distribuição' : 'Distribuir pontuação'}
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -116,7 +159,7 @@ export default function PontuacaoPage() {
                     </table>
                   </div>
 
-                  {distribuicao.restante > 0 ? (
+                  {distribuicao.restante > 0 && distribuicao.edicao_aberta ? (
                     <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-300">
                       Ainda faltam {distribuicao.restante} pontos para distribuir. Enquanto sobrar
                       ponto, você está deixando nota na mesa.

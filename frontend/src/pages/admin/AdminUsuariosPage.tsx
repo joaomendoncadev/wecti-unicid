@@ -8,16 +8,23 @@ import UsuarioFormModal from './UsuarioFormModal';
 import { atualizarUsuario, criarUsuario, excluirUsuario, listarUsuarios } from '../../services/usuarios';
 import { extrairMensagemErro } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import type { NovoUsuario, Perfil, Usuario } from '../../types';
 
 const LABEL_PERFIL: Record<string, string> = {
   ADMIN: 'Administrador',
+  PROFESSOR: 'Professor',
   ALUNO: 'Aluno',
 };
 
 const TAMANHO_PAGINA = 20;
 
 export default function AdminUsuariosPage() {
+  const { perfil } = useAuth();
+  // O professor só consulta. Esconder os botões é cortesia com a tela -
+  // quem recusa de verdade é o backend, que aceita POST/PUT/DELETE em
+  // /usuarios apenas de ADMIN.
+  const podeEditar = perfil === 'ADMIN';
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -132,8 +139,12 @@ export default function AdminUsuariosPage() {
   return (
     <PageContainer
       titulo="Usuários"
-      descricao="Alunos e administradores cadastrados"
-      acao={<Button onClick={abrirNovo}>Novo usuário</Button>}
+      descricao={
+        podeEditar
+          ? 'Alunos, professores e administradores cadastrados'
+          : 'Consulta dos cadastros — para alterações, procure a coordenação'
+      }
+      acao={podeEditar ? <Button onClick={abrirNovo}>Novo usuário</Button> : undefined}
     >
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
@@ -160,7 +171,10 @@ export default function AdminUsuariosPage() {
         <EmptyState titulo="Nenhum usuário encontrado" descricao="Tente ajustar a busca ou o filtro de perfil." />
       )}
       {semResultado && !filtrosAtivos && (
-        <EmptyState titulo="Nenhum usuário cadastrado" acao={<Button onClick={abrirNovo}>Cadastrar usuário</Button>} />
+        <EmptyState
+          titulo="Nenhum usuário cadastrado"
+          acao={podeEditar ? <Button onClick={abrirNovo}>Cadastrar usuário</Button> : undefined}
+        />
       )}
       {!carregando && !erro && usuarios.length > 0 && (
         <>
@@ -173,7 +187,7 @@ export default function AdminUsuariosPage() {
                   <th className="px-5 py-3 font-medium">Perfil</th>
                   <th className="px-5 py-3 font-medium">RGM/CPF</th>
                   <th className="px-5 py-3 font-medium">Curso</th>
-                  <th className="px-5 py-3 font-medium text-right">Ações</th>
+                  {podeEditar && <th className="px-5 py-3 font-medium text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -184,20 +198,22 @@ export default function AdminUsuariosPage() {
                     <td className="px-5 py-3 text-text-muted">{LABEL_PERFIL[usuario.perfil] ?? usuario.perfil}</td>
                     <td className="px-5 py-3 text-text-muted">{usuario.rgm ?? usuario.cpf ?? '-'}</td>
                     <td className="px-5 py-3 text-text-muted">{usuario.curso ?? '-'}</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variante="outline" onClick={() => abrirEdicao(usuario)}>
-                          Editar
-                        </Button>
-                        <Button
-                          variante="danger"
-                          carregando={excluindoId === usuario.id}
-                          onClick={() => excluir(usuario)}
-                        >
-                          Excluir
-                        </Button>
-                      </div>
-                    </td>
+                    {podeEditar && (
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variante="outline" onClick={() => abrirEdicao(usuario)}>
+                            Editar
+                          </Button>
+                          <Button
+                            variante="danger"
+                            carregando={excluindoId === usuario.id}
+                            onClick={() => excluir(usuario)}
+                          >
+                            Excluir
+                          </Button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

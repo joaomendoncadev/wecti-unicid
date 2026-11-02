@@ -10,7 +10,7 @@ const schema = z
   .object({
     nome: z.string().min(1, 'Informe o nome'),
     email: z.string().min(1, 'Informe o email').email('Email inválido'),
-    perfil: z.enum(['ADMIN', 'ALUNO']),
+    perfil: z.enum(['ADMIN', 'PROFESSOR', 'ALUNO']),
     rgm: z.string().optional(),
     cpf: z.string().optional(),
     // So informativo (confirmado com o professor) - sem formato exigido.
@@ -21,11 +21,11 @@ const schema = z
     path: ['rgm'],
   })
   // CPF é o identificador usado no "esqueci minha senha"
-  // (RecuperarSenhaPage) pro Admin - sem ele, um Admin cadastrado por
-  // outro Admin nunca teria como definir a própria senha (a provisória
-  // gerada no cadastro nunca é revelada pra ninguém).
-  .refine((dados) => dados.perfil !== 'ADMIN' || /^\d{11}$/.test(dados.cpf ?? ''), {
-    message: 'CPF obrigatório (11 dígitos) para perfil Administrador',
+  // (RecuperarSenhaPage) por quem não é aluno - sem ele, uma conta
+  // cadastrada por outra pessoa nunca teria como definir a própria senha
+  // (a provisória gerada no cadastro nunca é revelada pra ninguém).
+  .refine((dados) => dados.perfil === 'ALUNO' || /^\d{11}$/.test(dados.cpf ?? ''), {
+    message: 'CPF obrigatório (11 dígitos) para Administrador e Professor',
     path: ['cpf'],
   });
 
@@ -131,6 +131,7 @@ export default function UsuarioFormModal({ usuario, onSalvar, onFechar }: Props)
             {...register('perfil')}
           >
             <option value="ALUNO">Aluno</option>
+            <option value="PROFESSOR">Professor</option>
             <option value="ADMIN">Administrador</option>
           </select>
         </label>

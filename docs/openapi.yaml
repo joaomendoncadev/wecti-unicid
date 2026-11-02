@@ -1160,6 +1160,12 @@ paths:
         131 turmas de uma sentada só. A regra "usar tudo" aparece como
         `restante` na resposta, e é o que libera o comprovante
         (`completa`).
+
+
+        **Período de lançamento**: 26/10/2026 a 06/12/2026
+        (`app.distribuicao.inicio` / `.fim`). Fora dele a chamada é
+        recusada com 422 - a trava é do backend, não só do botão. O dia
+        do fim está dentro da janela, até 23:59:59.
       requestBody:
         required: true
         content:
@@ -1180,12 +1186,14 @@ paths:
         '404':
           description: Uma ou mais turmas informadas não existem
         '422':
-          description: O total passa do limite disponível
+          description: >
+            O total passa do limite disponível, ou a chamada caiu fora do
+            período de lançamento
 
   /distribuicoes:
     get:
       tags: [Distribuicao]
-      summary: Distribuição de todos os alunos (somente admin)
+      summary: Distribuição de todos os alunos (admin e professor)
       description: >
         Consulta da coordenação para lançar as notas: traz RGM, código,
         disciplina, professor, período e a nota de cada linha. Agrupado
@@ -1193,8 +1201,9 @@ paths:
         linhas juntas.
 
 
-        Somente ADMIN, pela mesma razão do ranking: o aluno vê o que ele
-        próprio fez, não o que os colegas fizeram.
+        ADMIN e PROFESSOR, pela mesma razão do ranking: o aluno vê o que
+        ele próprio fez, não o que os colegas fizeram. O professor filtra
+        pelas turmas dele e exporta em CSV para lançar no diário.
       responses:
         '200':
           description: Distribuição por aluno
@@ -1295,7 +1304,12 @@ components:
       # enum Java por padrao (Usuario.perfil, NovoUsuario.perfil e a claim
       # "perfil" do JWT) - o rascunho original documentava em minusculas,
       # mas nao era isso que a API implementada realmente devolvia/esperava.
-      enum: [ADMIN, ALUNO]
+      #
+      # PROFESSOR voltou em novembro de 2026, a pedido do stakeholder:
+      # somente leitura, em GET /usuarios e GET /distribuicoes. CPF e
+      # obrigatorio para ele, como para o admin (e o identificador do
+      # "esqueci minha senha").
+      enum: [ADMIN, PROFESSOR, ALUNO]
 
     Usuario:
       type: object
@@ -1743,6 +1757,19 @@ components:
     Distribuicao:
       type: object
       properties:
+        edicao_aberta:
+          type: boolean
+          description: >
+            Estamos dentro do período de lançamento? Fora dele o PUT é
+            recusado com 422. A leitura continua funcionando, porque o
+            comprovante impresso depende dela.
+        prazo_inicio:
+          type: string
+          format: date
+        prazo_fim:
+          type: string
+          format: date
+          description: Dia incluído na janela - fecha às 23:59:59 dele.
         limite:
           type: integer
           description: Pontuação do aluno, já aparada no teto de 2000

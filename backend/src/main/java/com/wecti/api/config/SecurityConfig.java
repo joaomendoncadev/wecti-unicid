@@ -116,7 +116,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/usuarios/me").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/usuarios/me").authenticated()
 
-                        .requestMatchers(HttpMethod.GET, "/usuarios").hasRole("ADMIN")
+                        // O PROFESSOR so CONSULTA a lista - ele precisa dela para
+                        // saber de quem e o RGM que aparece nas notas. Criar,
+                        // editar e excluir continuam so do admin: excluir aluno
+                        // apaga inscricoes, presencas e certificados em cascata,
+                        // sem desfazer (ver UsuarioService.excluir), e nao ha
+                        // motivo para esse poder estar numa conta que so confere
+                        // RGM e baixa CSV.
+                        .requestMatchers(HttpMethod.GET, "/usuarios").hasAnyRole("ADMIN", "PROFESSOR")
                         .requestMatchers(HttpMethod.POST, "/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/usuarios/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/usuarios/*").hasRole("ADMIN")
@@ -139,11 +146,13 @@ public class SecurityConfig {
                         // autenticado. Ja "/me/distribuicao" e do ALUNO: o id sai
                         // do token, nunca do corpo, senao um aluno distribuiria a
                         // pontuacao de outro. E "/distribuicoes" (a turma inteira)
-                        // e do ADMIN, pela mesma razao do ranking - o aluno ve o
-                        // que ele proprio fez, nao o que os colegas fizeram.
+                        // e do ADMIN e do PROFESSOR, pela mesma razao do ranking -
+                        // o aluno ve o que ele proprio fez, nao o que os colegas
+                        // fizeram. O professor precisa dela para lancar as notas
+                        // no diario, filtrando pelas turmas dele e exportando.
                         .requestMatchers(HttpMethod.GET, "/disciplinas").authenticated()
                         .requestMatchers("/me/distribuicao").hasRole("ALUNO")
-                        .requestMatchers(HttpMethod.GET, "/distribuicoes").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/distribuicoes").hasAnyRole("ADMIN", "PROFESSOR")
 
                         // Ranking: so o admin. O aluno via a classificacao da
                         // turma inteira ate setembro de 2026, quando o

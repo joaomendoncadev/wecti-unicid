@@ -33,6 +33,15 @@ const MENU_ADMIN: ItemMenu[] = [
   { to: '/admin/distribuicoes', label: 'Notas' },
 ];
 
+// O professor só consulta: a lista de usuários (para saber de quem é o
+// RGM que aparece nas notas) e as notas distribuídas, que ele exporta
+// para lançar no diário. Quem barra de verdade é o backend - tirar os
+// links daqui é só para a tela não oferecer o que vai dar 403.
+const MENU_PROFESSOR: ItemMenu[] = [
+  { to: '/admin/distribuicoes', label: 'Notas' },
+  { to: '/admin/usuarios', label: 'Usuários' },
+];
+
 export default function Navbar() {
   const { usuario, perfil, sair } = useAuth();
   const navigate = useNavigate();
@@ -45,7 +54,8 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', aoRolar);
   }, []);
 
-  const itens = perfil === 'ADMIN' ? MENU_ADMIN : MENU_ALUNO;
+  const itens =
+    perfil === 'ADMIN' ? MENU_ADMIN : perfil === 'PROFESSOR' ? MENU_PROFESSOR : MENU_ALUNO;
   const perfilInicial = homeDoPerfil(perfil);
   // Com a aba Perfil no menu, o nome no canto vira só identificação -
   // dois links para /perfil acenderiam juntos.

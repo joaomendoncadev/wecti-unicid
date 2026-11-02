@@ -4,13 +4,17 @@
 // mapeamento intermediaria.
 
 /**
- * So ADMIN e ALUNO - confirmado com o stakeholder do projeto que esta
- * versao nao precisa de um perfil PROFESSOR separado. O contrato
- * (docs/openapi.yaml) documenta o enum Perfil em minusculas, mas o
- * backend serializa o enum Java como veio (maiusculas) - e isso que a
+ * ADMIN (tudo), PROFESSOR (só consulta Usuários e Notas) e ALUNO.
+ *
+ * O PROFESSOR voltou em novembro de 2026, a pedido do stakeholder: a
+ * equipe docente precisa baixar as notas distribuídas sem depender do
+ * admin. Acesso é somente leitura - ver o enum Perfil no backend.
+ *
+ * O contrato (docs/openapi.yaml) documenta o enum em minúsculas, mas o
+ * backend serializa o enum Java como veio (maiúsculas) - é isso que a
  * API realmente devolve e espera em NovoUsuario.perfil.
  */
-export type Perfil = 'ADMIN' | 'ALUNO';
+export type Perfil = 'ADMIN' | 'PROFESSOR' | 'ALUNO';
 
 export interface Usuario {
   id: string;
@@ -339,6 +343,12 @@ export interface ItemDistribuicao {
  *  prontos do servidor: a tela não refaz a conta do teto, senão a regra
  *  viveria em dois lugares. */
 export interface Distribuicao {
+  /** Janela de lançamento (ver PrazoDistribuicao no backend). Fora dela
+   *  os botões de distribuir/editar ficam desabilitados — a impressão
+   *  continua liberada. */
+  edicao_aberta: boolean;
+  prazo_inicio: string;
+  prazo_fim: string;
   /** Pontuação dele, já aparada no teto de 2000. */
   limite: number;
   distribuido: number;

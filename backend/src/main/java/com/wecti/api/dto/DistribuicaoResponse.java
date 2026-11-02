@@ -1,6 +1,7 @@
 package com.wecti.api.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -25,5 +26,11 @@ public record DistribuicaoResponse(
         boolean completa,
         BigDecimal notaTotal,
         int pontosPorNota,
+        /** Janela de lancamento (ver PrazoDistribuicao). A tela mostra o
+         *  periodo ao aluno e desabilita os botoes quando fecha - mas a
+         *  trava de verdade esta no backend, no salvamento. */
+        boolean edicaoAberta,
+        LocalDate prazoInicio,
+        LocalDate prazoFim,
         List<ItemDistribuicaoResponse> itens) {
 }
