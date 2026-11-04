@@ -43,15 +43,17 @@ lá primeiro, antes de implementar.
   codes de check-in/check-out; acompanha a lista de inscritos (nome e
   e-mail) e de presença; lança pontos de gincana; é o único que vê o
   ranking.
-- **Professor**: **somente leitura**, em duas telas — Usuários (para
+- **Professor**: **somente leitura**, em duas telas de consulta — Usuários (para
   saber de quem é o RGM que aparece nas notas) e Notas
   (`/admin/distribuicoes`), que ele filtra pelas turmas dele e exporta em
   CSV para lançar no diário. Entra direto em Notas (`homeDoPerfil`).
 
-  Não cria, não edita e não exclui nada — decisão tomada junto com o
-  pedido: excluir aluno apaga inscrições, presenças e certificados em
-  cascata e sem desfazer, e não há motivo para esse poder estar numa
-  conta que só confere RGM e baixa CSV. CPF é obrigatório, como no admin,
+  Não cria, não edita e não exclui **nada de ninguém** — decisão tomada
+  junto com o pedido: excluir aluno apaga inscrições, presenças e
+  certificados em cascata e sem desfazer, e não há motivo para esse
+  poder estar numa conta que só confere RGM e baixa CSV. A exceção é o
+  **próprio cadastro**: ele tem a tela de Perfil como qualquer um (ver
+  `PUT /usuarios/me` mais abaixo). CPF é obrigatório, como no admin,
   porque é o identificador do "esqueci minha senha".
 - **Aluno**: se autocadastra (nome, RGM, email, senha e curso opcional -
   ver `CadastroAlunoRequest`) e depois pode corrigir o próprio cadastro;
@@ -227,13 +229,26 @@ lá primeiro, antes de implementar.
   não a classificação da turma. `GET /ranking` exige ADMIN no
   `SecurityConfig` - a restrição é do backend, não só do menu.
 - **Cada pessoa corrige o próprio cadastro** em `PUT /usuarios/me`, os
-  dois perfis: **aluno** em nome, RGM e curso; **admin** em nome e CPF.
-  O campo do outro perfil vem no corpo mas é ignorado, então aluno não
-  ganha CPF nem admin ganha RGM.
+  três perfis: **aluno** em nome, RGM e curso; **admin e professor** em
+  nome e CPF. O campo do outro perfil vem no corpo mas é ignorado, então
+  aluno não ganha CPF nem admin ganha RGM.
+
+  O corte é **aluno × não-aluno**, não "admin", tanto no service quanto
+  na tela — é o que mantém professor e admin no mesmo caso, já que os
+  dois se identificam por CPF.
+
+  > O professor nasceu de fora disso (novembro de 2026): o backend já o
+  > tratava junto com o admin, mas o menu dele não tinha o link e a tela
+  > perguntava `perfil === 'ADMIN'` para mostrar o campo de CPF, então
+  > ele via só o nome. Como é o CPF que confirma a identidade dele no
+  > "Esqueci minha senha", um CPF errado no cadastro só saía pela mão do
+  > admin.
 
   **Não** mexe em e-mail (é o login - errar ali tiraria o acesso da
   própria pessoa), perfil (seria escalada de privilégio) nem senha (essa
   vai por `/auth/redefinir-senha`). O id vem do token, nunca do corpo.
+  Quem precisa corrigir o e-mail depende de **outra pessoa**: o admin
+  usa a tela de Usuários; aluno e professor pedem a quem administra.
 - **O admin edita qualquer cadastro** em `PUT /usuarios/{id}` (tela de
   Usuários), incluindo e-mail e perfil - campos que o dono não mexe
   sozinho. Duas travas impedem que ele se tranque fora do sistema:
