@@ -10,7 +10,7 @@ import { listarInscritosComContato } from '../../services/inscricoes';
 import { extrairMensagemErro } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { formatarDataHora } from '../../utils/data';
-import { baixarCsv } from '../../utils/arquivo';
+import { baixarCsv, montarCsv, trechoDeNomeDeArquivo } from '../../utils/csv';
 import type { InscritoEvento } from '../../types';
 
 /**
@@ -94,19 +94,14 @@ export default function AdminInscritosPage() {
    * downloads nao diz de quem e cada uma.
    */
   const baixarLista = () => {
-    const titulo = (eventoSelecionado?.titulo ?? 'atividade')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .toLowerCase();
+    const titulo = trechoDeNomeDeArquivo(eventoSelecionado?.titulo ?? 'atividade');
     const hoje = new Date().toISOString().slice(0, 10);
 
-    baixarCsv(
-      `inscritos-${titulo}-${hoje}.csv`,
+    const conteudo = montarCsv(
       ['Aluno', 'E-mail', 'RGM', 'Inscrito em'],
       inscritos.map((i) => [i.nome, i.email, i.rgm, formatarDataHora(i.inscrito_em)]),
     );
+    baixarCsv(`inscritos-${titulo}-${hoje}.csv`, conteudo);
     notificarSucesso(`${inscritos.length} inscrito${inscritos.length === 1 ? '' : 's'} no arquivo.`);
   };
 
