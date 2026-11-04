@@ -40,6 +40,9 @@ const MENU_ADMIN: ItemMenu[] = [
 const MENU_PROFESSOR: ItemMenu[] = [
   { to: '/admin/distribuicoes', label: 'Notas' },
   { to: '/admin/usuarios', label: 'Usuários' },
+  // Perfil também para o professor: é onde ele corrige o próprio CPF,
+  // que é o que confirma a identidade dele no "Esqueci minha senha".
+  { to: '/perfil', label: 'Perfil' },
 ];
 
 export default function Navbar() {

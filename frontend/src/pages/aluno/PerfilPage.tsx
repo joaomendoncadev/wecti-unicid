@@ -16,10 +16,11 @@ import { useToast } from '../../context/ToastContext';
 import type { Usuario } from '../../types';
 
 /*
- * Apesar de morar em pages/aluno, esta tela serve os DOIS perfis: a rota
+ * Apesar de morar em pages/aluno, esta tela serve os TRÊS perfis: a rota
  * /perfil é a única sem restrição de perfil (ver App.tsx). Cada um edita
- * o que é seu — aluno: RGM e curso; admin: CPF. Quem decide é o perfil
- * que vem da API, não o do token, para a tela refletir o cadastro real.
+ * o que é seu — aluno: RGM e curso; admin e professor: CPF. Quem decide é
+ * o perfil que vem da API, não o do token, para a tela refletir o
+ * cadastro real.
  *
  * O crachá à esquerda resume o cadastro e acompanha o formulário
  * enquanto a pessoa digita — assim ela vê o
@@ -57,6 +58,9 @@ export default function PerfilPage() {
 
   const ehAluno = usuario?.perfil === 'ALUNO';
   const ehAdmin = usuario?.perfil === 'ADMIN';
+  // Admin e professor caem no mesmo caso: CPF obrigatório, sem RGM nem
+  // curso. É a mesma divisão que o backend faz em atualizarMeuPerfil.
+  const usaCpf = usuario !== null && !ehAluno;
 
   const {
     register,
@@ -116,7 +120,7 @@ export default function PerfilPage() {
         // vazio faria o @Pattern do DTO recusar, mesmo sendo um campo
         // que o backend ignoraria de qualquer jeito.
         ...(ehAluno ? { rgm: dados.rgm, curso: dados.curso?.trim() } : {}),
-        ...(ehAdmin ? { cpf: dados.cpf } : {}),
+        ...(usaCpf ? { cpf: dados.cpf } : {}),
       });
       setUsuario(atualizado);
       // A navbar mostra o nome a partir do usuário guardado na sessão,
@@ -196,7 +200,7 @@ export default function PerfilPage() {
               </Secao>
             )}
 
-            {ehAdmin && (
+            {usaCpf && (
               <Secao titulo="Documento" descricao="Confirma sua identidade na recuperação de senha.">
                 <FormField
                   label="CPF"
@@ -216,7 +220,8 @@ export default function PerfilPage() {
             {/* Explica o que a tela NÃO faz, no lugar onde a pessoa vai
                 procurar por isso, em vez de deixá-la caçar o botão. O
                 admin precisa da ressalva extra: ele TEM como trocar o
-                próprio e-mail, só que pela tela de Usuários. */}
+                próprio e-mail, só que pela tela de Usuários. O professor
+                não — ele só lê aquela tela, então depende do admin. */}
             <Secao titulo="Acesso à conta" descricao="Estes dados não mudam por aqui.">
               <LinhaBloqueada
                 rotulo="E-mail"
@@ -230,8 +235,10 @@ export default function PerfilPage() {
                       </Link>
                       .
                     </>
-                  ) : (
+                  ) : ehAluno ? (
                     'É o seu login. Para corrigir, fale com a organização do evento.'
+                  ) : (
+                    'É o seu login. Para corrigir, peça a um administrador.'
                   )
                 }
               />
@@ -345,7 +352,9 @@ function mascararCpf(cpf: string) {
 }
 
 function Cracha({ perfil, nome, curso, rgm, cpf, pontos }: CrachaProps) {
-  const ehAdmin = perfil === 'ADMIN';
+  // Mesmo corte do formulário: quem não é aluno tem CPF, e não tem RGM
+  // nem pontos para mostrar.
+  const ehEquipe = perfil !== 'ALUNO';
   const nomeExibido = nome.trim() || 'Seu nome';
   const rgmCompleto = RGM_VALIDO.test(rgm);
 
@@ -370,7 +379,7 @@ function Cracha({ perfil, nome, curso, rgm, cpf, pontos }: CrachaProps) {
         <div className="relative px-6 pb-6 pt-5">
           <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
             <span className="text-accent">WECTI</span>
-            <span>{ehAdmin ? 'Organização' : 'Participante'}</span>
+            <span>{ehEquipe ? 'Organização' : 'Participante'}</span>
           </div>
 
           <div className="mt-6 flex justify-center">
@@ -386,7 +395,7 @@ function Cracha({ perfil, nome, curso, rgm, cpf, pontos }: CrachaProps) {
               {nomeExibido}
             </p>
             <p className="mt-1 min-h-5 text-sm text-text-muted">
-              {ehAdmin ? 'Administrador' : curso.trim() || 'Curso não informado'}
+              {perfil === 'ADMIN' ? 'Administrador' : perfil === 'PROFESSOR' ? 'Professor' : curso.trim() || 'Curso não informado'}
             </p>
           </div>
 
@@ -399,12 +408,12 @@ function Cracha({ perfil, nome, curso, rgm, cpf, pontos }: CrachaProps) {
 
           <div className="flex items-end justify-between gap-4">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{ehAdmin ? 'CPF' : 'RGM'}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">{ehEquipe ? 'CPF' : 'RGM'}</p>
               <p className="mt-1 font-mono text-lg font-medium tracking-wider text-text">
-                {ehAdmin ? mascararCpf(cpf) : rgm ? formatarRgm(rgm) : '———— ————'}
+                {ehEquipe ? mascararCpf(cpf) : rgm ? formatarRgm(rgm) : '———— ————'}
               </p>
             </div>
-            {!ehAdmin && pontos !== null && (
+            {!ehEquipe && pontos !== null && (
               <div className="shrink-0 text-right">
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">Pontos</p>
                 <p className="mt-1 text-lg font-bold text-accent">{pontos}</p>
@@ -412,7 +421,7 @@ function Cracha({ perfil, nome, curso, rgm, cpf, pontos }: CrachaProps) {
             )}
           </div>
 
-          {!ehAdmin && (
+          {!ehEquipe && (
             <div className="mt-5 h-12">
               {rgmCompleto ? (
                 <CodigoBarras digitos={rgm} />
